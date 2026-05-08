@@ -1,0 +1,999 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>설문 전, 먼저 반응을 읽다</title>
+  <meta name="description" content="US fashion 전용 질문 설계로 컨셉을 합성 패널에 빠르게 점검하는 US fashion 실무자용 로컬 도구. 실제 소비자 조사 대체가 아닌 합성 패널 반응 분포 기준의 A-B 상대 비교 보조도구." />
+  <meta name="theme-color" content="#FFFFFF" />
+  <meta name="color-scheme" content="light dark" />
+  <meta property="og:title" content="설문 전, 먼저 반응을 읽다" />
+  <meta property="og:description" content="US fashion 컨셉을 합성 패널로 빠르게 점검합니다. 합성 패널 반응 분포 기준, A-B 상대 비교 중심." />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ko_KR" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='14' fill='%232f6fdd'/%3E%3Cpath fill='%23ffffff' d='M19 15h8v15l15-15h10L35 31l18 18H42L27 34v15h-8z'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    :root {
+      /* Align with Streamlit light theme (--kfps-*) */
+      --bg: #f7f6f2;
+      --kfps-primary: #2f6fdd;
+      --kfps-ink: #27282c;
+      --kfps-muted: #6d7078;
+      --kfps-hairline: #d8d3c9;
+      --surface: #fffdfa;
+      --surface-tint: #EEF4FB;
+      --source-panel-bg: #F8FBFF;
+      --source-panel-border: #B9D7FF;
+      --notice-border: #F0DFA0;
+      --border: #d8d3c9;
+      --text-primary: #27282c;
+      --text-secondary: #6d7078;
+      --text-tertiary: #8A92A0;
+      --accent: #2f6fdd;
+      --accent-soft: #dbeafe;
+      --warn-soft: #FEF3C7;
+      --warn-text: #7A5A00;
+      --radius-sm: 8px;
+      --radius: 16px;
+      --radius-lg: 16px;
+      --max: 1120px;
+      --content: 780px;
+    }
+
+    body[data-theme="dark"] {
+      --bg: #17181b;
+      --kfps-ink: #f2f4f8;
+      --kfps-muted: #aeb5c2;
+      --kfps-hairline: #383c44;
+      --surface: #202227;
+      --surface-tint: #182338;
+      --source-panel-bg: #1b2636;
+      --source-panel-border: #344a68;
+      --notice-border: #5c4924;
+      --border: #383c44;
+      --text-primary: #f2f4f8;
+      --text-secondary: #c3c8d2;
+      --text-tertiary: #9aa2b2;
+      --accent-soft: rgba(47, 111, 221, 0.18);
+      --warn-soft: rgba(245, 158, 11, 0.16);
+      --warn-text: #f8d27a;
+    }
+
+    html { -webkit-text-size-adjust: 100%; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      letter-spacing: 0.005em;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img, svg { max-width: 100%; display: block; }
+    h1, h2, h3 { line-height: 1.25; letter-spacing: -0.01em; margin: 0; }
+    p { margin: 0; }
+
+    .wrap {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Header */
+    .site-header {
+      position: sticky;
+      top: 0;
+      min-height: 52px;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: saturate(140%) blur(10px);
+      -webkit-backdrop-filter: saturate(140%) blur(10px);
+      border-bottom: 1px solid var(--kfps-hairline);
+      z-index: 10;
+    }
+    .site-header .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 52px;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-primary);
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+      font-weight: 900;
+      font-size: 19px;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .brand .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .brand .full { display: none; }
+    .brand .short { display: inline; }
+    .brand .sub { color: var(--text-secondary); font-size: 13px; font-weight: 650; margin-left: 6px; display: none; }
+    @media (min-width: 560px) {
+      .brand .full { display: inline; }
+      .brand .short { display: none; }
+      .brand .sub { display: inline; }
+    }
+    @media (max-width: 720px) {
+      .site-header .topbar { padding-right: 14px; }
+      .brand { font-size: 15px; }
+      .brand .sub { display: none; }
+    }
+
+    .top-controls {
+      display: grid;
+      grid-template-columns: 32px 48px 32px 10px 42px 48px 34px;
+      align-items: center;
+      gap: 6px;
+      color: var(--kfps-ink);
+      flex: 0 0 auto;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .top-controls span,
+    .top-controls b {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-flex;
+      width: 48px;
+      height: 28px;
+      cursor: pointer;
+    }
+    .toggle-switch input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .toggle-switch i {
+      position: absolute;
+      inset: 2px;
+      border: 2px solid var(--kfps-ink);
+      border-radius: 999px;
+      background: var(--surface);
+      transition: background-color 160ms ease, border-color 160ms ease;
+    }
+    .toggle-switch i::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 4px;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: var(--kfps-ink);
+      transition: transform 160ms ease, background-color 160ms ease;
+    }
+    .toggle-switch input:checked + i {
+      background: var(--kfps-ink);
+    }
+    .toggle-switch input:checked + i::after {
+      transform: translateX(20px);
+      background: var(--surface);
+    }
+    @media (max-width: 760px) {
+      .site-header .topbar { gap: 8px; }
+      .top-controls { grid-template-columns: 28px 44px 28px 8px 36px 44px 30px; gap: 4px; font-size: 10px; }
+      .toggle-switch { width: 44px; }
+      .toggle-switch input:checked + i::after { transform: translateX(16px); }
+    }
+
+    /* Hero — Streamlit kfps-hero 근사 (패브릭 + 어두운 오버레이) */
+    .hero-app {
+      position: relative;
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      padding: 72px 24px 56px;
+      overflow: hidden;
+      text-align: center;
+      color: #ffffff;
+      background:
+        linear-gradient(135deg, #9edcff 0%, #5fb3ff 100%),
+        url("../design/hero-skyblue-fabric.png") center / cover no-repeat;
+    }
+    .hero-app::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background: rgba(0, 0, 0, 0.26);
+      backdrop-filter: blur(1.4px);
+      -webkit-backdrop-filter: blur(1.4px);
+      pointer-events: none;
+    }
+    .hero-app .wrap-inner { position: relative; z-index: 1; }
+
+    .hero-eyebrow {
+      display: inline-block;
+      margin: 0 auto 14px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: rgba(255, 255, 255, 0.95);
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      padding: 7px 14px;
+      border-radius: 999px;
+    }
+
+    h1.title-app {
+      font-size: clamp(21px, 2.4vw, 27px);
+      font-weight: 650;
+      line-height: 1.2;
+      max-width: 48ch;
+      margin: 0 auto 12px;
+      color: #ffffff;
+      text-shadow: 0 2px 16px rgba(0, 0, 0, 0.34);
+    }
+    .lede-app {
+      color: rgba(255, 255, 255, 0.92);
+      font-size: clamp(13px, 1.35vw, 16px);
+      font-weight: 400;
+      line-height: 1.65;
+      max-width: 56ch;
+      margin: 0 auto 20px;
+      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .hero-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin: 22px auto 22px;
+    }
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1;
+      text-decoration: none !important;
+      border-radius: 9999px;
+      color: #ffffff !important;
+      background: rgba(18, 25, 35, 0.38);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        0 8px 24px rgba(0, 0, 0, 0.12);
+      backdrop-filter: blur(16px) saturate(125%);
+      -webkit-backdrop-filter: blur(16px) saturate(125%);
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+      transition: none;
+    }
+    .hero-pill:hover {
+      background: rgba(18, 25, 35, 0.5);
+      border-color: rgba(255, 255, 255, 0.45);
+      text-decoration: none !important;
+    }
+    .hero-pill svg {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 10px 14px;
+      margin-top: 6px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 15px;
+      line-height: 1.2;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: transform 80ms ease, background-color 120ms ease, border-color 120ms ease;
+    }
+    .btn-primary {
+      background: var(--kfps-primary);
+      color: #f8f6ef;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 4px 14px rgba(47, 111, 221, 0.22);
+      transition: none;
+    }
+    .btn-primary:hover { background: #1f5fc6; text-decoration: none; }
+    .btn-primary:active { transform: translateY(1px); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border-color: var(--border);
+      padding: 10px 14px;
+      font-size: 14px;
+    }
+    .btn-ghost:hover { color: var(--text-primary); border-color: #C9CFD8; text-decoration: none; }
+
+    .hero-app .btn-ghost {
+      color: rgba(255, 255, 255, 0.94);
+      border-color: rgba(255, 255, 255, 0.42);
+      background: rgba(255, 255, 255, 0.1);
+      transition: none;
+    }
+    .hero-app .btn-ghost:hover {
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.65);
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .cta-hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 10px;
+      margin: 16px auto 0;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.84);
+      max-width: 760px;
+      line-height: 1.55;
+      text-shadow: 0 1px 10px rgba(0,0,0,0.25);
+    }
+    .cta-hint strong {
+      color: rgba(255, 255, 255, 0.95);
+    }
+    .cta-hint code {
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.2);
+      border: 1px solid rgba(255,255,255,0.24);
+      color: rgba(255,255,255,0.94);
+      word-break: break-word;
+    }
+
+    /* Features */
+    .section { padding: clamp(28px, 5vw, 48px) 0; }
+    .section h2 {
+      font-size: clamp(20px, 2.6vw, 24px);
+      margin-bottom: 6px;
+    }
+    .section .sub {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 22px;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 720px) {
+      .features { grid-template-columns: 1fr 1fr; }
+      .features .feature.feature-wide { grid-column: 1 / -1; }
+    }
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 18px 16px;
+    }
+    .feature .num {
+      display: inline-flex;
+      width: 22px; height: 22px;
+      align-items: center; justify-content: center;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .feature h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .feature p {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* Disclaimer block */
+    .notice {
+      margin-top: 8px;
+      background: var(--warn-soft);
+      border: 1px solid var(--notice-border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      color: var(--warn-text);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .notice strong { color: var(--warn-text); }
+
+    .source-lock .panel {
+      background: var(--source-panel-bg);
+      border: 1px solid var(--source-panel-border);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 12px 16px;
+    }
+    .source-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .source-dataset-text {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      color: var(--kfps-primary);
+      font-size: 16px;
+      font-weight: 650;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .source-cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 14px;
+      margin: 0;
+    }
+    .btn-source-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 22px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 16px;
+      line-height: 1.2;
+      background: var(--kfps-primary);
+      color: #f8f6ef !important;
+      border: 1px solid transparent;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 4px 14px rgba(47, 111, 221, 0.22);
+      text-decoration: none !important;
+      transition: none;
+    }
+    .btn-source-primary:hover {
+      background: #1f5fc6;
+      color: #f8f6ef !important;
+      text-decoration: none !important;
+    }
+    .btn-source-ghost {
+      display: inline-flex;
+      align-items: center;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-primary) !important;
+      text-decoration: none !important;
+      transition: none;
+    }
+    .btn-source-ghost:hover {
+      border-color: #c9cfd8;
+      text-decoration: none !important;
+    }
+    .source-lock .source-note {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-top: 4px;
+      grid-column: 1 / -1;
+    }
+    .source-lock .sub {
+      grid-column: 1 / -1;
+      margin: 2px 0 0;
+    }
+    @media (max-width: 720px) {
+      .source-lock .panel {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Quick info */
+    .quick {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    @media (min-width: 720px) {
+      .quick { grid-template-columns: 1fr 1fr; }
+    }
+    .quick .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .quick .card h3 {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: 0.01em;
+    }
+    .quick .card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+    .quick .card li { margin: 4px 0; }
+    /* Footer */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 24px 0 32px;
+      margin-top: 16px;
+    }
+    .site-footer .small {
+      color: var(--text-tertiary);
+      font-size: 12.5px;
+      line-height: 1.7;
+    }
+    .site-footer .small a { color: var(--text-secondary); }
+    .footer-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .footer-links {
+      display: flex; flex-wrap: wrap; gap: 12px 16px;
+      font-size: 13px;
+    }
+    .footer-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 7px;
+    }
+    .footer-contact {
+      color: var(--accent);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .footer-contact a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .footer-contact a:hover { text-decoration: underline; }
+
+    body[data-theme="dark"] .feature,
+    body[data-theme="dark"] .quick .card,
+    body[data-theme="dark"] .btn-source-ghost,
+    body[data-theme="dark"] .site-footer {
+      background: #202227;
+      border-color: #383c44;
+    }
+    body[data-theme="dark"] .source-lock .panel {
+      background: #1b2636;
+      border-color: #344a68;
+    }
+    body[data-theme="dark"] .notice {
+      background: rgba(245, 158, 11, 0.16);
+      border-color: #5c4924;
+      color: #f8d27a;
+    }
+    body[data-theme="dark"] .notice strong {
+      color: #f8d27a;
+    }
+    body[data-theme="dark"] .btn-source-ghost:hover {
+      border-color: #586273;
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      .btn { transition: none; }
+    }
+
+    /* Print friendliness */
+    @media print {
+      .site-header { position: static; }
+      .hero-app::before { display: none; }
+    }
+  </style>
+</head>
+<body data-lang="ko" data-theme="light">
+  <header class="site-header" role="banner">
+    <div class="topbar">
+      <a class="brand" href="#top" aria-label="US Fashion Personas Screener 홈">
+        <span class="brand-name">
+          <span class="full">US Fashion Personas Screener</span>
+          <span class="short">US Fashion Personas Screener</span>
+        </span>
+      </a>
+      <div class="top-controls" aria-label="Display settings">
+        <span>ENG</span>
+        <label class="toggle-switch" aria-label="Language">
+          <input id="lang-toggle" type="checkbox" checked />
+          <i aria-hidden="true"></i>
+        </label>
+        <span>KOR</span>
+        <b>/</b>
+        <span>LIGHT</span>
+        <label class="toggle-switch" aria-label="Theme">
+          <input id="theme-toggle" type="checkbox" />
+          <i aria-hidden="true"></i>
+        </label>
+        <span>DARK</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero-app">
+      <div class="wrap wrap-inner">
+        <div class="hero-eyebrow">로컬 퍼블릭 베타 · v0.3</div>
+        <h1 class="title-app">설문 전, 먼저 반응을 읽다</h1>
+        <p class="lede-app">
+          이 페이지는 앱과 짝을 이루는 안내문서입니다.<br />
+          실행하기를 누르면 바로 이용할 수 있습니다.<br /><br />
+          고민 중인 패션 컨셉을 합성 패널(Personas-Dataset)에 먼저 보여주고,<br />
+          전문 설문 전 반응의 방향성을 빠르게 확인해보세요.
+        </p>
+        <div class="hero-pills">
+          <a class="hero-pill" href="https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA" rel="noopener noreferrer" target="_blank">🤗 nvidia/Nemotron-Personas-USA</a>
+          <a class="hero-pill" href="https://github.com/woooya129-ai/us-fashion-persona" rel="noopener noreferrer" target="_blank"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+          <a class="hero-pill" href="https://github.com/woooya129-ai/us-fashion-persona/blob/main/LICENSE" rel="noopener noreferrer" target="_blank">⚖ AGPL-3.0-only</a>
+        </div>
+        <div class="cta-row">
+          <a class="btn btn-primary"
+             href="http://localhost:8501/"
+             rel="noopener">실행하기</a>
+          <a class="btn btn-ghost" href="#scope-h">범위 보기</a>
+        </div>
+        <div class="cta-hint" id="local-app-prereq">
+          <strong>실행 전제</strong>
+          <span>클론본 루트에서</span>
+          <code>uv run streamlit run src/app.py</code>
+          <span>실행 후</span>
+          <code>http://localhost:8501/</code>
+          <span>접속</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section source-lock" id="source" aria-label="데이터 출처">
+      <div class="wrap">
+        <div class="panel">
+          <div class="source-cta-row">
+            <a class="btn-source-primary"
+               href="https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA"
+               rel="noopener noreferrer"
+               target="_blank">공식 데이터셋 보기</a>
+          </div>
+          <div class="source-meta-row" aria-label="데이터셋">
+            <span class="source-dataset-text dataset-name">nvidia/Nemotron-Personas-USA</span>
+          </div>
+          <p class="sub">
+            공개 표기, 앱 footer, 리포트 footer의 attribution은 이 데이터셋 하나로 고정합니다.
+            라이선스는 <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>입니다.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="why-h">
+      <div class="wrap">
+        <h2 id="why-h">이 도구가 좁히는 범위</h2>
+        <p class="sub">완전한 SaaS도, 실제 소비자 조사 대체도 아닙니다. 패션 컨셉을 합성 패널에 빠르게 확인하는 보조도구입니다.</p>
+
+        <div class="features" role="list">
+          <article class="feature" role="listitem">
+            <span class="num" aria-hidden="true">1</span>
+            <h3>US fashion 전용 질문 설계</h3>
+            <p>일반 시장조사 도구가 아니라 브랜드 컨셉, 가격, 착용 상황, 스타일 톤, 메시지 반응을<br />묻는 패션 전용 screener.</p>
+          </article>
+
+          <article class="feature" role="listitem">
+            <span class="num" aria-hidden="true">2</span>
+            <h3>US fashion 실무자용 local app</h3>
+            <p>SaaS가 아니라 local Streamlit GUI입니다.<br />API Key와 결과는 사용자 실행 환경에 남습니다.</p>
+          </article>
+
+          <article class="feature feature-wide" role="listitem">
+            <span class="num" aria-hidden="true">3</span>
+            <h3>제품 카드 → 균형형 패널 평가 → 수정 제안 후보 → CSV/Markdown 리포트</h3>
+            <p>입력에서 리포트까지 한 흐름입니다. v0.3 평가는 리스크뿐 아니라 취향 적합성·관심/공감부터 망설임·리스크까지 7개 축으로 균형 있게 설계되어 있습니다.<br />리포트에서는 concern 문장을 패션 리스크 7분류로 집계하고, deterministic rule 기반 수정 제안 후보와 대표 페르소나 카드로 정리합니다.</p>
+          </article>
+
+          <article class="feature" role="listitem">
+            <span class="num" aria-hidden="true">4</span>
+            <h3>가격 부담도는 예측이 아니라 맥락값</h3>
+            <p>소득이나 구매력을 직접 추정하지 않습니다.<br />가격이 부담 요인으로 작동할 수 있는지 정도만 표시합니다.</p>
+          </article>
+
+          <article class="feature" role="listitem">
+            <span class="num" aria-hidden="true">5</span>
+            <h3>실제 소비자 조사 대체 아님 / A-B 상대 비교 중심</h3>
+            <p>합성 패널 기준이므로 절대 수치 단정은 피해야 합니다. 컨셉 A·B 상대 비교에 적합합니다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="scope-h">
+      <div class="wrap">
+        <h2 id="scope-h">포함과 한계</h2>
+        <p class="sub">로컬 베타 범위는 좁게 설정되어 있습니다. 확장 영역은 후속 작업으로 분리합니다.</p>
+
+        <div class="quick">
+          <div class="card">
+            <h3>지금 할 수 있는 것 (로컬 앱에서)</h3>
+            <ul>
+              <li>제품 카드 입력<br />카테고리, 가격, 핏, 소재, 컬러, 시즌, 착용 상황, 스타일 톤, 타깃 가설, 브랜드 메시지</li>
+              <li>모델 선택 + 토큰/비용/시간 사전 추정</li>
+              <li>합성 패널 응답을 취향·관심·망설임·리스크 등 7개 관점으로 균형 있게 평가(리포트 집계는 concern·리스크 카테고리 포함)</li>
+              <li>deterministic rule 기반 수정 제안 후보 자동 생성</li>
+              <li>대표 페르소나 카드와 CSV / Markdown 리포트 다운로드</li>
+              <li>본인 API Key를 로컬 secret 경로에서 로드</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>이 페이지/저장소가 다루지 않는 것</h3>
+            <ul>
+              <li>이 정적 페이지에서의 평가 실행 (도구는 로컬 앱 탭에서)</li>
+              <li>호스팅 SaaS / 결제 / 계정 / 크레딧</li>
+              <li>실제 소비자 조사를 대체하는 결론</li>
+              <li>비즈니스 성과나 시장 점유 단정</li>
+              <li>합성 패널을 전체 소비자로 일반화</li>
+              <li>실제 매출/판매 결과 보장</li>
+              <li>대기업 납품형 보안·계약 문서</li>
+            </ul>
+          </div>
+        </div>
+
+        <p class="notice" role="note">
+          <strong>안내.</strong>
+          본 페이지는 설명용 정적 문서이며, 평가 실행은 로컬 앱 탭에서만 진행합니다.
+          공개 저장소는 호스팅 평가 서비스가 아닙니다.
+          본 도구는 합성 페르소나와 LLM 기반의 사전 가설 분석 보조도구로,
+          합성 패널 반응 분포를 보여줄 뿐 실제 소비자 반응이나 비즈니스 판단을 단정하지 않습니다.
+          최종 의사결정은 사람의 판단과 정식 조사·자문을 함께 사용해야 합니다.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="license-h" aria-labelledby="license-heading">
+      <div class="wrap">
+        <h2 id="license-heading">라이선스와 권리 고지</h2>
+        <p class="sub">코드 라이선스와 브랜드 사용 정책은 분리되어 있습니다.</p>
+        <div class="quick">
+          <div class="card">
+            <h3>Code license</h3>
+            <ul>
+              <li>GNU Affero General Public License v3.0 <strong>only</strong></li>
+              <li>SPDX: <code>AGPL-3.0-only</code></li>
+              <li>전문은 공개 저장소의 <code>LICENSE</code> 파일</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Branding &amp; attribution</h3>
+            <ul>
+              <li>프로젝트명·로고·도메인은 코드 라이선스로 자동 허가되지 않습니다 (<code>BRANDING_POLICY.md</code>)</li>
+              <li>NVIDIA Nemotron-Personas-USA 출처 표시는 <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a><br />본 프로젝트는 NVIDIA 비공식</li>
+              <li>제3자 dependency 고지는 <code>THIRD_PARTY_NOTICES.md</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="wrap">
+      <div class="footer-row">
+        <p class="small">
+          © US Fashion Persona Screener · local beta · v0.3<br />
+          Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) ·
+          Data source: <a href="https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA" rel="noopener">🤗 nvidia/Nemotron-Personas-USA</a> only · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>.<br />
+          This page documents the local beta and links to the local app; it is not hosted evaluation.
+        </p>
+        <div class="footer-actions">
+          <nav class="footer-links" aria-label="출처 링크">
+            <a href="http://localhost:8501/" rel="noopener">로컬 앱</a>
+            <a href="https://github.com/woooya129-ai/us-fashion-persona" rel="noopener">GitHub</a>
+            <a href="https://www.gnu.org/licenses/agpl-3.0.en.html" rel="noopener">AGPL-3.0-only</a>
+            <a href="https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA" rel="noopener">Dataset</a>
+            <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>
+          </nav>
+          <div class="footer-contact">Contact: <a href="https://www.linkedin.com/in/woody-kim-ab2741403/" rel="noopener">LinkedIn</a></div>
+        </div>
+      </div>
+    </div>
+  </footer>
+  <script>
+    const copy = {
+      ko: {
+        title: "설문 전, 먼저 반응을 읽다",
+        description: "US fashion 전용 질문 설계로 컨셉을 합성 패널에 빠르게 점검하는 US fashion 실무자용 로컬 도구. 실제 소비자 조사 대체가 아닌 합성 패널 반응 분포 기준의 A-B 상대 비교 보조도구.",
+        items: {
+          ".hero-eyebrow": "로컬 퍼블릭 베타 · v0.3",
+          ".title-app": "설문 전, 먼저 반응을 읽다",
+          ".lede-app": "이 페이지는 앱과 짝을 이루는 안내문서입니다.<br />실행하기를 누르면 바로 이용할 수 있습니다.<br /><br />고민 중인 패션 컨셉을 합성 패널(Personas-Dataset)에 먼저 보여주고,<br />전문 설문 전 반응의 방향성을 빠르게 확인해보세요.",
+          ".btn-primary": "실행하기",
+          ".btn-ghost": "범위 보기",
+          ".cta-hint strong": "실행 전제",
+          ".cta-hint span:nth-of-type(1)": "클론본 루트에서",
+          ".cta-hint span:nth-of-type(2)": "실행 후",
+          ".cta-hint span:nth-of-type(3)": "접속",
+          ".btn-source-primary": "공식 데이터셋 보기",
+          ".source-lock .sub": "공개 표기, 앱 footer, 리포트 footer의 attribution은 이 데이터셋 하나로 고정합니다. 라이선스는 <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a>입니다.",
+          "#why-h": "이 도구가 좁히는 범위",
+          "#why-h + .sub": "완전한 SaaS도, 실제 소비자 조사 대체도 아닙니다. 패션 컨셉을 합성 패널에 빠르게 확인하는 보조도구입니다.",
+          ".features .feature:nth-child(1) h3": "US fashion 전용 질문 설계",
+          ".features .feature:nth-child(1) p": "일반 시장조사 도구가 아니라 브랜드 컨셉, 가격, 착용 상황, 스타일 톤, 메시지 반응을<br />묻는 패션 전용 screener.",
+          ".features .feature:nth-child(2) h3": "US fashion 실무자용 local app",
+          ".features .feature:nth-child(2) p": "SaaS가 아니라 local Streamlit GUI입니다.<br />API Key와 결과는 사용자 실행 환경에 남습니다.",
+          ".features .feature:nth-child(3) h3": "제품 카드 → 균형형 패널 평가 → 수정 제안 후보 → CSV/Markdown 리포트",
+          ".features .feature:nth-child(3) p": "입력에서 리포트까지 한 흐름입니다. v0.3 평가는 리스크뿐 아니라 취향 적합성·관심/공감부터 망설임·리스크까지 7개 축으로 균형 있게 설계되어 있습니다.<br />리포트에서는 concern 문장을 패션 리스크 7분류로 집계하고, deterministic rule 기반 수정 제안 후보와 대표 페르소나 카드로 정리합니다.",
+          ".features .feature:nth-child(4) h3": "가격 부담도는 예측이 아니라 맥락값",
+          ".features .feature:nth-child(4) p": "소득이나 구매력을 직접 추정하지 않습니다.<br />가격이 부담 요인으로 작동할 수 있는지 정도만 표시합니다.",
+          ".features .feature:nth-child(5) h3": "실제 소비자 조사 대체 아님 / A-B 상대 비교 중심",
+          ".features .feature:nth-child(5) p": "합성 패널 기준이므로 절대 수치 단정은 피해야 합니다. 컨셉 A·B 상대 비교에 적합합니다.",
+          "#scope-h": "포함과 한계",
+          "#scope-h + .sub": "로컬 베타 범위는 좁게 설정되어 있습니다. 확장 영역은 후속 작업으로 분리합니다.",
+          ".quick .card:nth-child(1) h3": "지금 할 수 있는 것 (로컬 앱에서)",
+          ".quick .card:nth-child(1) li:nth-child(1)": "제품 카드 입력<br />카테고리, 가격, 핏, 소재, 컬러, 시즌, 착용 상황, 스타일 톤, 타깃 가설, 브랜드 메시지",
+          ".quick .card:nth-child(1) li:nth-child(2)": "모델 선택 + 토큰/비용/시간 사전 추정",
+          ".quick .card:nth-child(1) li:nth-child(3)": "합성 패널 응답을 취향·관심·망설임·리스크 등 7개 관점으로 균형 있게 평가(리포트 집계는 concern·리스크 카테고리 포함)",
+          ".quick .card:nth-child(1) li:nth-child(4)": "deterministic rule 기반 수정 제안 후보 자동 생성",
+          ".quick .card:nth-child(1) li:nth-child(5)": "대표 페르소나 카드와 CSV / Markdown 리포트 다운로드",
+          ".quick .card:nth-child(1) li:nth-child(6)": "본인 API Key를 로컬 secret 경로에서 로드",
+          ".quick .card:nth-child(2) h3": "이 페이지/저장소가 다루지 않는 것",
+          ".quick .card:nth-child(2) li:nth-child(1)": "이 정적 페이지에서의 평가 실행 (도구는 로컬 앱 탭에서)",
+          ".quick .card:nth-child(2) li:nth-child(2)": "호스팅 SaaS / 결제 / 계정 / 크레딧",
+          ".quick .card:nth-child(2) li:nth-child(3)": "실제 소비자 조사를 대체하는 결론",
+          ".quick .card:nth-child(2) li:nth-child(4)": "비즈니스 성과나 시장 점유 단정",
+          ".quick .card:nth-child(2) li:nth-child(5)": "합성 패널을 전체 소비자로 일반화",
+          ".quick .card:nth-child(2) li:nth-child(6)": "실제 매출/판매 결과 보장",
+          ".quick .card:nth-child(2) li:nth-child(7)": "대기업 납품형 보안·계약 문서",
+          ".notice": "<strong>안내.</strong> 본 페이지는 설명용 정적 문서이며, 평가 실행은 로컬 앱 탭에서만 진행합니다. 공개 저장소는 호스팅 평가 서비스가 아닙니다. 본 도구는 합성 페르소나와 LLM 기반의 사전 가설 분석 보조도구로, 합성 패널 반응 분포를 보여줄 뿐 실제 소비자 반응이나 비즈니스 판단을 단정하지 않습니다. 최종 의사결정은 사람의 판단과 정식 조사·자문을 함께 사용해야 합니다.",
+          "#license-heading": "라이선스와 권리 고지",
+          "#license-heading + .sub": "코드 라이선스와 브랜드 사용 정책은 분리되어 있습니다.",
+          "#license-h .quick .card:nth-child(1) li:nth-child(3)": "전문은 공개 저장소의 <code>LICENSE</code> 파일",
+          "#license-h .quick .card:nth-child(2) li:nth-child(1)": "프로젝트명·로고·도메인은 코드 라이선스로 자동 허가되지 않습니다 (<code>BRANDING_POLICY.md</code>)",
+          "#license-h .quick .card:nth-child(2) li:nth-child(2)": "NVIDIA Nemotron-Personas-USA 출처 표시는 <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a><br />본 프로젝트는 NVIDIA 비공식",
+          "#license-h .quick .card:nth-child(2) li:nth-child(3)": "제3자 dependency 고지는 <code>THIRD_PARTY_NOTICES.md</code>",
+          ".site-footer .small": "© US Fashion Personas Screener · local beta · v0.3<br />Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) · Data source: <a href=\"https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA\" rel=\"noopener\">🤗 nvidia/Nemotron-Personas-USA</a> only · <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a>.<br />이 페이지는 로컬 베타와 로컬 앱 연결을 안내하며, 호스팅 평가 서비스가 아닙니다.",
+          ".footer-links a:nth-child(1)": "로컬 앱"
+        }
+      },
+      en: {
+        title: "Read concept reactions before the survey",
+        description: "A local tool for US fashion teams to pre-check concepts through a synthetic persona panel. It supports A-B relative comparison and does not replace real consumer research.",
+        items: {
+          ".hero-eyebrow": "Local public beta · v0.3",
+          ".title-app": "Read reactions before the survey",
+          ".lede-app": "This page is the companion guide for the local app.<br />Press Run to open the tool.<br /><br />Show a fashion concept to the synthetic Personas-Dataset panel first,<br />then quickly read the direction of reactions before expert surveys or main research.",
+          ".btn-primary": "Run",
+          ".btn-ghost": "View scope",
+          ".cta-hint strong": "Run prerequisite",
+          ".cta-hint span:nth-of-type(1)": "From the cloned repo root",
+          ".cta-hint span:nth-of-type(2)": "then open",
+          ".cta-hint span:nth-of-type(3)": "",
+          ".btn-source-primary": "View official dataset",
+          ".source-lock .sub": "Public attribution, the app footer, and report footer use this dataset as the single fixed attribution. License is <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a>.",
+          "#why-h": "What This Tool Narrows",
+          "#why-h + .sub": "It is not a full SaaS product and does not replace real consumer research. It is a supporting tool for quickly checking fashion concepts with a synthetic panel.",
+          ".features .feature:nth-child(1) h3": "US fashion-specific question design",
+          ".features .feature:nth-child(1) p": "Not a generic market-research tool. It asks about brand concept, price, wearing context, style tone, and message reaction<br />as a fashion-specific screener.",
+          ".features .feature:nth-child(2) h3": "Local app for US fashion practitioners",
+          ".features .feature:nth-child(2) p": "It is a local Streamlit GUI, not SaaS.<br />API keys and results remain in the user's execution environment.",
+          ".features .feature:nth-child(3) h3": "Product card → balanced panel evaluation → revision candidates → CSV/Markdown report",
+          ".features .feature:nth-child(3) p": "The flow runs from input to report. v0.3 evaluation is balanced across 7 axes, from taste fit and interest/empathy to hesitation and risk.<br />Reports aggregate concern sentences into 7 fashion-risk categories, then summarize deterministic rule-based revision candidates and representative persona cards.",
+          ".features .feature:nth-child(4) h3": "Price burden is context, not prediction",
+          ".features .feature:nth-child(4) p": "It does not directly estimate income or purchasing power.<br />It only indicates whether price may operate as a burden factor.",
+          ".features .feature:nth-child(5) h3": "Not a substitute for real consumer research / best for A-B relative comparison",
+          ".features .feature:nth-child(5) p": "Because it is based on a synthetic panel, avoid absolute-number claims. Use it for relative comparison between concepts A and B.",
+          "#scope-h": "Included And Limited",
+          "#scope-h + .sub": "The local beta is intentionally narrow. Broader expansion areas are separated into later work.",
+          ".quick .card:nth-child(1) h3": "What you can do now (in the local app)",
+          ".quick .card:nth-child(1) li:nth-child(1)": "Enter a product card<br />category, price, fit, material, color, season, wearing context, style tone, target hypothesis, brand message",
+          ".quick .card:nth-child(1) li:nth-child(2)": "Select a model and estimate tokens, cost, and time before running",
+          ".quick .card:nth-child(1) li:nth-child(3)": "Evaluate synthetic-panel responses across 7 balanced views including taste, interest, hesitation, and risk",
+          ".quick .card:nth-child(1) li:nth-child(4)": "Generate deterministic rule-based revision candidates",
+          ".quick .card:nth-child(1) li:nth-child(5)": "Download representative persona cards and CSV / Markdown reports",
+          ".quick .card:nth-child(1) li:nth-child(6)": "Load your own API key from the local secret path",
+          ".quick .card:nth-child(2) h3": "What this page/repo does not cover",
+          ".quick .card:nth-child(2) li:nth-child(1)": "Running evaluation on this static page (run it in the local app tab)",
+          ".quick .card:nth-child(2) li:nth-child(2)": "Hosted SaaS / payment / account / credits",
+          ".quick .card:nth-child(2) li:nth-child(3)": "Conclusions that replace real consumer research",
+          ".quick .card:nth-child(2) li:nth-child(4)": "Claims about business performance or market share",
+          ".quick .card:nth-child(2) li:nth-child(5)": "Generalizing the synthetic panel to all US synthetic personas",
+          ".quick .card:nth-child(2) li:nth-child(6)": "Guarantees of actual sales or selling results",
+          ".quick .card:nth-child(2) li:nth-child(7)": "Enterprise procurement-level security or contract documents",
+          ".notice": "<strong>Notice.</strong> This static page is for documentation only. Evaluation runs only in the local app tab. The public repository is not a hosted evaluation service. This tool is a synthetic-persona and LLM-based pre-hypothesis analysis aid. It shows synthetic-panel reaction distributions, not definitive consumer reactions or business judgments. Final decisions should use human judgment together with formal research and expert advice.",
+          "#license-heading": "License And Rights Notice",
+          "#license-heading + .sub": "Code licensing and brand-use policy are separate.",
+          "#license-h .quick .card:nth-child(1) li:nth-child(3)": "Full text is in the repository <code>LICENSE</code> file",
+          "#license-h .quick .card:nth-child(2) li:nth-child(1)": "Project name, logo, and domain are not automatically licensed by the code license (<code>BRANDING_POLICY.md</code>)",
+          "#license-h .quick .card:nth-child(2) li:nth-child(2)": "NVIDIA Nemotron-Personas-USA attribution is <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a><br />This project is not affiliated with NVIDIA",
+          "#license-h .quick .card:nth-child(2) li:nth-child(3)": "Third-party dependency notices are in <code>THIRD_PARTY_NOTICES.md</code>",
+          ".site-footer .small": "© US Fashion Personas Screener · local beta · v0.3<br />Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) · Data source: <a href=\"https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA\" rel=\"noopener\">🤗 nvidia/Nemotron-Personas-USA</a> only · <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a>.<br />This page documents the local beta and links to the local app; it is not hosted evaluation.",
+          ".footer-links a:nth-child(1)": "Local app"
+        }
+      }
+    };
+
+    function setCopy(lang) {
+      const pack = copy[lang];
+      document.documentElement.lang = lang === "ko" ? "ko" : "en";
+      document.body.dataset.lang = lang;
+      document.title = pack.title;
+      const description = document.querySelector('meta[name="description"]');
+      if (description) description.setAttribute("content", pack.description);
+      Object.entries(pack.items).forEach(([selector, html]) => {
+        const node = document.querySelector(selector);
+        if (node) node.innerHTML = html;
+      });
+    }
+
+    function setTheme(theme) {
+      document.body.dataset.theme = theme;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute(
+        "content",
+        theme === "dark" ? "#17181b" : "#FFFFFF"
+      );
+    }
+
+    const langToggle = document.getElementById("lang-toggle");
+    const themeToggle = document.getElementById("theme-toggle");
+    const savedLang = localStorage.getItem("kfps-docs-lang") || "ko";
+    const savedTheme = localStorage.getItem("kfps-docs-theme") || "light";
+    langToggle.checked = savedLang === "ko";
+    themeToggle.checked = savedTheme === "dark";
+    setCopy(savedLang);
+    setTheme(savedTheme);
+    langToggle.addEventListener("change", () => {
+      const nextLang = langToggle.checked ? "ko" : "en";
+      localStorage.setItem("kfps-docs-lang", nextLang);
+      setCopy(nextLang);
+    });
+    themeToggle.addEventListener("change", () => {
+      const nextTheme = themeToggle.checked ? "dark" : "light";
+      localStorage.setItem("kfps-docs-theme", nextTheme);
+      setTheme(nextTheme);
+    });
+  </script>
+</body>
+</html>

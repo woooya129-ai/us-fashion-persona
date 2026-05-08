@@ -1,0 +1,55 @@
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Local data and runtime output
+data/raw/*
+data/processed/*
+data/cached/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/cached/.gitkeep
+cache/*
+outputs/*
+logs/*
+!cache/.gitkeep
+!outputs/.gitkeep
+!logs/.gitkeep
+
+# Generated data files
+*.db
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.parquet
+*.pkl
+*.h5
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Editor and temporary files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+*.tmp
+*.bak
+*~

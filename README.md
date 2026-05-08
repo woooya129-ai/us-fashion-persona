@@ -1,50 +1,111 @@
 # usfashionpersona
 
-## US fashion 컨셉을
+![AI Digital Fashion Panel overview](docs/assets/us-fashion-persona-images.jpeg)
 
-## AI 페르소나로 먼저 점검
+## Check a US fashion idea before a real survey
 
 [![HF Dataset](https://img.shields.io/badge/HF-Dataset-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA)
 [![GitHub](https://img.shields.io/badge/GitHub-us--fashion--persona-181717?logo=github&logoColor=white)](https://github.com/woooya129-ai/us-fashion-persona)
-[![Docs](https://img.shields.io/badge/Docs-INSTALL-2563EB?logo=readthedocs&logoColor=white)](INSTALL.md)
+[![Docs](https://img.shields.io/badge/Docs-INSTALL--ENG-2563EB?logo=readthedocs&logoColor=white)](INSTALL-ENG.md)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-0F766E.svg)](LICENSE)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Woody%20Kim-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/woody-kim-ab2741403/)
 
-제품 카드에 카테고리, 가격, 핏, 소재, 컬러, 착용 맥락, 타깃 가설을 입력하고, 합성 페르소나 관점에서 취향 적합성, 관심 이유, 망설임, 패션 리스크 신호를 빠르게 확인합니다.
+usfashionpersona is a local AI panel tool for fashion concept screening.
 
-전문 설문이나 본조사 전에 패션 컨셉 반응의 방향성을 먼저 가늠하기 위한 local-first public beta 도구입니다. 실제 소비자 예측, 구매율 예측, 매출 예측 서비스가 아닙니다.
+You enter a fashion product idea. The app shows it to synthetic personas with a US context. Then it gives early signals about fit, interest, hesitation, and risk.
+
+This tool helps you prepare for a better real survey. It does not replace a real survey, real customer interviews, sales data, or expert review.
 
 ```mermaid
 flowchart LR
-  A["Synthetic personas"] --> C["Persona panel"]
-  B["Product card"] --> C
-  C --> D["Taste check"]
-  D --> E["Early signals"]
-  E --> F["Next step"]
+  A["Fashion idea"] --> B["Product card"]
+  B --> C["AI persona panel"]
+  C --> D["Fast reaction check"]
+  D --> E["Better real survey"]
 ```
 
-NVIDIA Nemotron-Personas-USA는 USA 맥락을 반영한 합성 페르소나 데이터셋입니다. 이 도구는 제품 카드를 여러 합성 페르소나에게 보여주는 방식으로, 본 설문조사 전에 취향 적합성, 관심 이유, 망설임, 리스크 신호를 빠르게 훑어봅니다.
+## What It Checks
 
-이 방식이 가능한 이유는 실제 구매를 예측하려는 것이 아니라, 제품 설명을 봤을 때 어떤 지점에서 관심이 생기고 어떤 지점에서 막히는지 early signal을 보는 용도이기 때문입니다. 최종 판단은 실제 설문, 판매 데이터, 전문가 검토와 함께 해야 합니다.
+- Product type, price, fit, material, and color
+- Season and wearing situation
+- Style tone and brand message
+- Target customer idea
+- Why a persona may like it
+- Why a persona may hesitate
+- Price resistance and fashion risk signals
+- A Markdown or CSV report
 
-![US Fashion Persona Screener main screen](docs/assets/usfashionpersona-screenshot-01.webp)
+## How It Works
 
-![US Fashion Persona Screener result screen](docs/assets/usfashionpersona-screenshot-02.webp)
+1. You write a fashion concept in a product card.
+2. The app loads synthetic personas from NVIDIA Nemotron-Personas-USA.
+3. You can filter the panel by fields like age, gender, region, or job.
+4. The app samples a persona panel with a seed.
+5. An LLM checks the concept from each persona view.
+6. The app validates the answers with a fixed JSON schema.
+7. You read the result as a report.
 
-## What You Can Check
+## What The Result Means
 
-- 제품 카테고리, 가격대, 핏, 소재, 컬러
-- 시즌, 착용 상황, 스타일 톤
-- 브랜드 메시지와 제품 설명
-- 타깃/브랜드 가설
-- 페르소나별 관심 이유, 망설임, 리스크 신호
-- 결과 리포트 다운로드
+Use the result as a pre-screen.
 
-## Boundary
+Good use:
 
-- 사용자 본인의 API key로 로컬에서 실행합니다.
-- 기본 API key 입력 방식은 Streamlit 화면의 password 입력칸입니다.
-- API key, cache, outputs, raw data는 공개 저장소에 포함하지 않습니다.
-- 로컬 persona 파일은 `data/` 하위에서만 읽습니다. 권장 위치는 `data/raw/`입니다.
-- NVIDIA Nemotron-Personas-USA 데이터셋은 CC BY 4.0 attribution 대상입니다.
-- 코드 공개 라이선스는 GNU AGPL-3.0-only입니다.
+- Find weak parts in the product story.
+- Compare two early concept directions.
+- Check if price, material, or fit may create friction.
+- Prepare better questions for a real survey.
+
+Bad use:
+
+- Predict real sales.
+- Predict real purchase rate.
+- Replace a real consumer survey.
+- Make a final launch decision from AI output only.
+
+## Data
+
+The main external dataset is [NVIDIA Nemotron-Personas-USA](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA).
+
+The dataset is synthetic. It is not a list of real people. It gives persona-style context for early product thinking.
+
+For price context, this app uses the BLS 2024 Consumer Expenditure `Apparel and services` yearly spend baseline. This is only a simple price-burden reference. It is not income, wealth, or purchase intent.
+
+## Run Locally
+
+This is not a hosted service. Run it on your own computer.
+
+Requirements:
+
+- Python 3.11 or higher
+- uv
+- Streamlit
+- Your own LLM provider API key
+- Hugging Face access if needed
+
+```bash
+git clone https://github.com/woooya129-ai/us-fashion-persona.git
+cd us-fashion-persona
+uv sync --all-extras --dev
+uv run streamlit run src/app.py
+```
+
+Open `http://localhost:8501` in your browser.
+
+For more setup steps, read [INSTALL-ENG.md](INSTALL-ENG.md).
+
+## API Key And Local Data
+
+- Enter your API key in the Streamlit password field.
+- Do not commit API keys.
+- API keys, cache files, outputs, logs, and raw data are not included in this public repository.
+- Put local persona files under `data/`. The recommended folder is `data/raw/`.
+- The app stores run metadata in a local SQLite cache.
+- It does not store raw API keys, Hugging Face tokens, raw provider responses, or raw concept text as separate columns.
+
+## License
+
+- Code: GNU AGPL-3.0-only
+- NVIDIA Nemotron-Personas-USA: see the dataset page for its license and attribution terms
+
+Contact: woooya129 [at] gmail [dot] com

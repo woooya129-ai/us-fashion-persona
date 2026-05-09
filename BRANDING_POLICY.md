@@ -12,7 +12,7 @@ license permissions from official project identity.
 
 - Official project name: US Fashion Persona Screener
 - Public repository: https://github.com/woooya129-ai/us-fashion-persona
-- Official website: https://usfashionpersona.com
+- Official website: https://us-fashion-persona.com
 - Maintainer/owner: woooya129-ai
 
 ## Allowed Uses
@@ -48,7 +48,7 @@ Avoid wording such as:
 
 - "Official US Fashion Persona Screener"
 - "US Fashion Persona Screener Pro"
-- "usfashionpersona.com official mirror"
+- "us-fashion-persona.com official mirror"
 
 unless written permission is granted by the owner.
 

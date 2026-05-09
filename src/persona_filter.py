@@ -192,6 +192,47 @@ def sample_to_result(
     )
 
 
+def sample_iterable_to_result(
+    personas: Iterable[Persona],
+    filt: PersonaFilter,
+    sample_size: int,
+    seed: int,
+) -> SampleResult:
+    """Filter and sample an iterable without materializing every persona."""
+    if sample_size <= 0:
+        raise ValueError(f"sample_size must be positive, got {sample_size}")
+
+    rng = random.Random(seed)  # nosec B311
+    reservoir: list[Persona] = []
+    matched_count = 0
+
+    for persona in personas:
+        if not filt.matches(persona):
+            continue
+        matched_count += 1
+        if len(reservoir) < sample_size:
+            reservoir.append(persona)
+            continue
+        index = rng.randrange(matched_count)
+        if index < sample_size:
+            reservoir[index] = persona
+
+    if matched_count == 0:
+        return SampleResult(
+            rows=[],
+            matched_count_before_sample=0,
+            sample_size=0,
+            sampling_seed=seed,
+        )
+
+    return SampleResult(
+        rows=sorted(reservoir, key=lambda p: p.persona_id),
+        matched_count_before_sample=matched_count,
+        sample_size=min(sample_size, matched_count),
+        sampling_seed=seed,
+    )
+
+
 def preview_first_n(rows: list[Any], n: int = 30) -> list[Any]:
     """Return the first n preview rows."""
     if n <= 0:

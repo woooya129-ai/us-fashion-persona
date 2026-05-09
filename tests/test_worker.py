@@ -6,6 +6,7 @@ no network, no async. Marked no_network.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import threading
 import uuid
@@ -13,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from src.db import init_db
+from src.db import get_connection, init_db
 from src.job_manager import (
     RunMeta,
     create_job,
@@ -136,6 +137,142 @@ def test_run_worker_mixed_cached_and_success(tmp_path: Path) -> None:
     assert record.cached_count == 1
     assert record.success_count == 1
     assert record.status == "completed"
+
+
+def test_run_worker_persists_explicit_cache_key_when_cache_row_exists(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    cache_key = "c" * 64
+    with get_connection(db) as conn:
+        conn.execute(
+            "INSERT INTO llm_cache ("
+            "cache_key, persona_id, concept_hash, price_context_hash, provider, "
+            "model_name, temperature, prompt_version, schema_version, "
+            "price_context_version, response_json, raw_response_path, "
+            "input_tokens_actual, output_tokens_actual, cost_actual_usd, created_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                cache_key,
+                "p001",
+                "c" * 64,
+                "p" * 64,
+                "openai",
+                "gpt-4o-mini",
+                0.3,
+                "concept_eval_ko_v0_3",
+                "eval_v0_1",
+                "bls_2024_apparel_services_annual_v1",
+                '{"ok":1}',
+                None,
+                None,
+                None,
+                None,
+                "2026-05-07T00:00:00.000000Z",
+            ),
+        )
+        conn.commit()
+
+    def evaluator(_payload: dict) -> dict:
+        return {
+            "status": "success",
+            "error_type": None,
+            "response_json": '{"ok":1}',
+            "latency_ms": 1,
+            "cache_key": cache_key,
+        }
+
+    job_id = create_job(db, total_count=1)
+    run_worker(
+        WorkerInput(
+            db_path=db,
+            job_id=job_id,
+            run_meta=_run_meta(job_id),
+            persona_payloads=[{"persona_id": "p001", "_cache_key": cache_key}],
+            evaluator=evaluator,
+        )
+    )
+
+    with get_connection(db) as conn:
+        row = conn.execute("SELECT cache_key FROM run_results WHERE persona_id = 'p001'").fetchone()
+
+    assert row[0] == cache_key
+
+
+@pytest.mark.parametrize("payload_key", ["_cache_key", "cache_key"])
+def test_run_worker_does_not_promote_payload_cache_key_without_explicit_result(
+    tmp_path: Path,
+    payload_key: str,
+) -> None:
+    db = _db(tmp_path)
+    cache_key = "m" * 64
+
+    def evaluator(_payload: dict) -> dict:
+        return {
+            "status": "success",
+            "error_type": None,
+            "response_json": '{"ok":1}',
+            "latency_ms": 1,
+        }
+
+    job_id = create_job(db, total_count=1)
+    run_worker(
+        WorkerInput(
+            db_path=db,
+            job_id=job_id,
+            run_meta=_run_meta(job_id),
+            persona_payloads=[{"persona_id": "p001", payload_key: cache_key}],
+            evaluator=evaluator,
+        )
+    )
+
+    with get_connection(db) as conn:
+        row = conn.execute(
+            "SELECT status, cache_key FROM run_results WHERE persona_id = 'p001'"
+        ).fetchone()
+
+    record = load_job(db, job_id)
+    assert record.status == "completed"
+    assert record.success_count == 1
+    assert row == ("success", None)
+
+
+def test_run_worker_async_evaluator_uses_configured_concurrency(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    personas = ["p001", "p002", "p003", "p004"]
+    active = 0
+    peak = 0
+    lock = threading.Lock()
+
+    async def evaluator(_payload: dict) -> dict:
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        await asyncio.sleep(0.05)
+        with lock:
+            active -= 1
+        return {
+            "status": "success",
+            "error_type": None,
+            "response_json": '{"ok":1}',
+            "latency_ms": 1,
+        }
+
+    job_id = create_job(db, total_count=len(personas))
+    run_worker(
+        WorkerInput(
+            db_path=db,
+            job_id=job_id,
+            run_meta=_run_meta(job_id),
+            persona_payloads=[{"persona_id": pid} for pid in personas],
+            evaluator_async=evaluator,
+            concurrency=2,
+        )
+    )
+
+    record = load_job(db, job_id)
+    assert record.status == "completed"
+    assert record.success_count == 4
+    assert peak == 2
 
 
 # ---------------------------------------------------------------------------
@@ -543,12 +680,11 @@ def test_worker_does_not_import_streamlit() -> None:
     assert re.search(r"\bst\.[a-zA-Z_]", source) is None
 
 
-def test_worker_does_not_use_asyncio_run() -> None:
-    """asyncio.run / async def belong to WS-PROMPT-LLM, not WS-JOB."""
+def test_worker_uses_async_runner_without_defining_async_functions() -> None:
+    """Worker may bridge to async_runner, but async task logic stays there."""
     source = _read_source("worker.py")
-    assert "asyncio.run" not in source
-    assert "import asyncio" not in source
     assert "async def" not in source
+    assert "run_evaluations" in source
 
 
 def test_worker_does_not_use_subprocess_eval_exec_pickle() -> None:

@@ -1,4 +1,4 @@
-US Fashion Persona Screener
+us-fashion-persona
 Copyright (c) 2026 woooya129-ai
 
 This project was created and is maintained by woooya129-ai.
@@ -12,6 +12,19 @@ https://us-fashion-persona.com
 This repository is licensed under the GNU Affero General Public License v3.0 only.
 SPDX-License-Identifier: AGPL-3.0-only
 
+Commercial licensing and dual licensing:
+
+The public repository license is AGPL-3.0-only. This is not a public grant of
+any proprietary or commercial license. The copyright holder may offer separate
+written commercial license terms, including a dual-license arrangement, for
+commercial services, closed-source products, internal SaaS deployments, or
+redistributed products.
+
+Unless a separate written agreement is signed by the copyright holder, all use
+of this public repository remains subject to AGPL-3.0-only.
+
+Commercial licenses are available from the copyright holder on request.
+
 The software license grants rights to use, study, modify, and share the covered
 source code under the terms of AGPL-3.0-only. It does not grant rights to use
 the project name, logos, domain names, or official branding in a way that
@@ -21,7 +34,10 @@ Forks and modified versions must not imply that they are the official project,
 official website, or an endorsed distribution unless written permission is
 granted by the project owner.
 
-Third-party datasets, libraries, and materials remain under their respective
-licenses. See THIRD_PARTY_NOTICES.md.
+Third-party datasets, libraries, statistics, and materials remain under their
+respective licenses. See docs/THIRD_PARTY_NOTICES.md.
+
+For citation, attribution, methodology, and rights-positioning guidance, see
+CITATION.cff and docs/METHODOLOGY_AND_RIGHTS.md.
 
 No warranty is provided. See LICENSE for details.

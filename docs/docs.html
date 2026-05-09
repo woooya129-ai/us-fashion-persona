@@ -635,10 +635,10 @@
 <body data-lang="ko" data-theme="light">
   <header class="site-header" role="banner">
     <div class="topbar">
-      <a class="brand" href="#top" aria-label="US Fashion Personas Screener 홈">
+      <a class="brand" href="#top" aria-label="us-fashion-persona 홈">
         <span class="brand-name">
-          <span class="full">US Fashion Personas Screener</span>
-          <span class="short">US Fashion Personas Screener</span>
+          <span class="full">us-fashion-persona</span>
+          <span class="short">us-fashion-persona</span>
         </span>
       </a>
       <div class="top-controls" aria-label="Display settings">
@@ -662,7 +662,7 @@
   <main id="top">
     <section class="hero-app">
       <div class="wrap wrap-inner">
-        <div class="hero-eyebrow">로컬 퍼블릭 베타 · v0.3</div>
+        <div class="hero-eyebrow">로컬 퍼블릭 베타 · v0.5.3</div>
         <h1 class="title-app">설문 전, 먼저 반응을 읽다</h1>
         <p class="lede-app">
           이 페이지는 앱과 짝을 이루는 안내문서입니다.<br />
@@ -733,7 +733,7 @@
           <article class="feature feature-wide" role="listitem">
             <span class="num" aria-hidden="true">3</span>
             <h3>제품 카드 → 균형형 패널 평가 → 수정 제안 후보 → CSV/Markdown 리포트</h3>
-            <p>입력에서 리포트까지 한 흐름입니다. v0.3 평가는 리스크뿐 아니라 취향 적합성·관심/공감부터 망설임·리스크까지 7개 축으로 균형 있게 설계되어 있습니다.<br />리포트에서는 concern 문장을 패션 리스크 7분류로 집계하고, deterministic rule 기반 수정 제안 후보와 대표 페르소나 카드로 정리합니다.</p>
+            <p>입력에서 리포트까지 한 흐름입니다. v0.5.3은 USA 데이터셋, BLS/Census/Federal Reserve 집계 통계, LLM API 가격 추정을 함께 정리합니다.<br />리포트에서는 concern 문장을 패션 리스크 7분류로 집계하고, deterministic rule 기반 수정 제안 후보와 대표 페르소나 카드로 정리합니다.</p>
           </article>
 
           <article class="feature" role="listitem">
@@ -812,6 +812,8 @@
               <li>프로젝트명·로고·도메인은 코드 라이선스로 자동 허가되지 않습니다 (<code>BRANDING_POLICY.md</code>)</li>
               <li>NVIDIA Nemotron-Personas-USA 출처 표시는 <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a><br />본 프로젝트는 NVIDIA 비공식</li>
               <li>제3자 dependency 고지는 <code>THIRD_PARTY_NOTICES.md</code></li>
+              <li>공식 인용 형식은 <code>CITATION.cff</code></li>
+              <li>방법론과 상용 도입 경계는 <code>METHODOLOGY_AND_RIGHTS.md</code></li>
             </ul>
           </div>
         </div>
@@ -823,9 +825,9 @@
     <div class="wrap">
       <div class="footer-row">
         <p class="small">
-          © US Fashion Persona Screener · local beta · v0.3<br />
+          © us-fashion-persona · local beta · v0.5.3<br />
           Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) ·
-          Data source: <a href="https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA" rel="noopener">🤗 nvidia/Nemotron-Personas-USA</a> only · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>.<br />
+          Persona dataset: <a href="https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA" rel="noopener">🤗 nvidia/Nemotron-Personas-USA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a> · Public statistics: BLS, U.S. Census, Federal Reserve SCF.<br />
           This page documents the local beta and links to the local app; it is not hosted evaluation.
         </p>
         <div class="footer-actions">
@@ -847,7 +849,7 @@
         title: "설문 전, 먼저 반응을 읽다",
         description: "US fashion 전용 질문 설계로 컨셉을 합성 패널에 빠르게 점검하는 US fashion 실무자용 로컬 도구. 실제 소비자 조사 대체가 아닌 합성 패널 반응 분포 기준의 A-B 상대 비교 보조도구.",
         items: {
-          ".hero-eyebrow": "로컬 퍼블릭 베타 · v0.3",
+          ".hero-eyebrow": "로컬 퍼블릭 베타 · v0.5.3",
           ".title-app": "설문 전, 먼저 반응을 읽다",
           ".lede-app": "이 페이지는 앱과 짝을 이루는 안내문서입니다.<br />실행하기를 누르면 바로 이용할 수 있습니다.<br /><br />고민 중인 패션 컨셉을 합성 패널(Personas-Dataset)에 먼저 보여주고,<br />전문 설문 전 반응의 방향성을 빠르게 확인해보세요.",
           ".btn-primary": "실행하기",
@@ -865,7 +867,7 @@
           ".features .feature:nth-child(2) h3": "US fashion 실무자용 local app",
           ".features .feature:nth-child(2) p": "SaaS가 아니라 local Streamlit GUI입니다.<br />API Key와 결과는 사용자 실행 환경에 남습니다.",
           ".features .feature:nth-child(3) h3": "제품 카드 → 균형형 패널 평가 → 수정 제안 후보 → CSV/Markdown 리포트",
-          ".features .feature:nth-child(3) p": "입력에서 리포트까지 한 흐름입니다. v0.3 평가는 리스크뿐 아니라 취향 적합성·관심/공감부터 망설임·리스크까지 7개 축으로 균형 있게 설계되어 있습니다.<br />리포트에서는 concern 문장을 패션 리스크 7분류로 집계하고, deterministic rule 기반 수정 제안 후보와 대표 페르소나 카드로 정리합니다.",
+          ".features .feature:nth-child(3) p": "입력에서 리포트까지 한 흐름입니다. v0.5.3은 USA 데이터셋, BLS/Census/Federal Reserve 집계 통계, LLM API 가격 추정을 함께 정리합니다.<br />리포트에서는 concern 문장을 패션 리스크 7분류로 집계하고, deterministic rule 기반 수정 제안 후보와 대표 페르소나 카드로 정리합니다.",
           ".features .feature:nth-child(4) h3": "가격·소득·자산 맥락값",
           ".features .feature:nth-child(4) p": "BLS 의류 지출, Census 중위 가구소득, Federal Reserve SCF 순자산 기준을 함께 표시합니다.<br />개인별 구매력이나 구매 의향 예측은 아닙니다.",
           ".features .feature:nth-child(5) h3": "실제 소비자 조사 대체 아님 / A-B 상대 비교 중심",
@@ -894,7 +896,9 @@
           "#license-h .quick .card:nth-child(2) li:nth-child(1)": "프로젝트명·로고·도메인은 코드 라이선스로 자동 허가되지 않습니다 (<code>BRANDING_POLICY.md</code>)",
           "#license-h .quick .card:nth-child(2) li:nth-child(2)": "NVIDIA Nemotron-Personas-USA 출처 표시는 <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a><br />본 프로젝트는 NVIDIA 비공식",
           "#license-h .quick .card:nth-child(2) li:nth-child(3)": "제3자 dependency 고지는 <code>THIRD_PARTY_NOTICES.md</code>",
-          ".site-footer .small": "© US Fashion Personas Screener · local beta · v0.3<br />Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) · Data source: <a href=\"https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA\" rel=\"noopener\">🤗 nvidia/Nemotron-Personas-USA</a> only · <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a>.<br />이 페이지는 로컬 베타와 로컬 앱 연결을 안내하며, 호스팅 평가 서비스가 아닙니다.",
+          "#license-h .quick .card:nth-child(2) li:nth-child(4)": "공식 인용 형식은 <code>CITATION.cff</code>",
+          "#license-h .quick .card:nth-child(2) li:nth-child(5)": "방법론과 상용 도입 경계는 <code>METHODOLOGY_AND_RIGHTS.md</code>",
+          ".site-footer .small": "© us-fashion-persona · local beta · v0.5.3<br />Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) · Persona dataset: <a href=\"https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA\" rel=\"noopener\">🤗 nvidia/Nemotron-Personas-USA</a> · <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a> · Public statistics: BLS, U.S. Census, Federal Reserve SCF.<br />이 페이지는 로컬 베타와 로컬 앱 연결을 안내하며, 호스팅 평가 서비스가 아닙니다.",
           ".footer-links a:nth-child(1)": "로컬 앱"
         }
       },
@@ -902,7 +906,7 @@
         title: "Read concept reactions before the survey",
         description: "A local tool for US fashion teams to pre-check concepts through a synthetic persona panel. It supports A-B relative comparison and does not replace real consumer research.",
         items: {
-          ".hero-eyebrow": "Local public beta · v0.3",
+          ".hero-eyebrow": "Local public beta · v0.5.3",
           ".title-app": "Read reactions before the survey",
           ".lede-app": "This page is the companion guide for the local app.<br />Press Run to open the tool.<br /><br />Show a fashion concept to the synthetic Personas-Dataset panel first,<br />then quickly read the direction of reactions before expert surveys or main research.",
           ".btn-primary": "Run",
@@ -920,7 +924,7 @@
           ".features .feature:nth-child(2) h3": "Local app for US fashion practitioners",
           ".features .feature:nth-child(2) p": "It is a local Streamlit GUI, not SaaS.<br />API keys and results remain in the user's execution environment.",
           ".features .feature:nth-child(3) h3": "Product card → balanced panel evaluation → revision candidates → CSV/Markdown report",
-          ".features .feature:nth-child(3) p": "The flow runs from input to report. v0.3 evaluation is balanced across 7 axes, from taste fit and interest/empathy to hesitation and risk.<br />Reports aggregate concern sentences into 7 fashion-risk categories, then summarize deterministic rule-based revision candidates and representative persona cards.",
+          ".features .feature:nth-child(3) p": "The flow runs from input to report. v0.5.3 organizes the USA dataset, BLS/Census/Federal Reserve aggregate statistics, and LLM API cost estimates.<br />Reports aggregate concern sentences into 7 fashion-risk categories, then summarize deterministic rule-based revision candidates and representative persona cards.",
           ".features .feature:nth-child(4) h3": "Price, income, and asset context",
           ".features .feature:nth-child(4) p": "It uses BLS apparel spend, Census median household income, and Federal Reserve SCF net worth baselines.<br />It does not predict personal purchasing power or purchase intent.",
           ".features .feature:nth-child(5) h3": "Not a substitute for real consumer research / best for A-B relative comparison",
@@ -949,7 +953,9 @@
           "#license-h .quick .card:nth-child(2) li:nth-child(1)": "Project name, logo, and domain are not automatically licensed by the code license (<code>BRANDING_POLICY.md</code>)",
           "#license-h .quick .card:nth-child(2) li:nth-child(2)": "NVIDIA Nemotron-Personas-USA attribution is <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a><br />This project is not affiliated with NVIDIA",
           "#license-h .quick .card:nth-child(2) li:nth-child(3)": "Third-party dependency notices are in <code>THIRD_PARTY_NOTICES.md</code>",
-          ".site-footer .small": "© US Fashion Personas Screener · local beta · v0.3<br />Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) · Data source: <a href=\"https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA\" rel=\"noopener\">🤗 nvidia/Nemotron-Personas-USA</a> only · <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a>.<br />This page documents the local beta and links to the local app; it is not hosted evaluation.",
+          "#license-h .quick .card:nth-child(2) li:nth-child(4)": "Formal citation format is <code>CITATION.cff</code>",
+          "#license-h .quick .card:nth-child(2) li:nth-child(5)": "Methodology and commercial adoption boundaries are in <code>METHODOLOGY_AND_RIGHTS.md</code>",
+          ".site-footer .small": "© us-fashion-persona · local beta · v0.5.3<br />Code license: <strong>GNU AGPL v3.0 only</strong> (SPDX <code>AGPL-3.0-only</code>) · Persona dataset: <a href=\"https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA\" rel=\"noopener\">🤗 nvidia/Nemotron-Personas-USA</a> · <a href=\"https://creativecommons.org/licenses/by/4.0/\" rel=\"noopener\">CC BY 4.0</a> · Public statistics: BLS, U.S. Census, Federal Reserve SCF.<br />This page documents the local beta and links to the local app; it is not hosted evaluation.",
           ".footer-links a:nth-child(1)": "Local app"
         }
       }

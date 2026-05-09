@@ -48,6 +48,12 @@ Open:
 http://localhost:8501
 ```
 
+To make the local Docs button work, run this in another terminal:
+
+```bash
+uv run python -m http.server 8510
+```
+
 ## 5. Configure API Keys
 
 Do not put real API keys inside the repository.

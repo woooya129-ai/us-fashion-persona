@@ -64,6 +64,10 @@ def _run_meta(job_id: str, run_id: str | None = None) -> RunMeta:
         price_context_version="bls_2024_apparel_services_annual_v1",
         concept_hash="deadbeef",
         price_context_hash="cafebabe",
+        dataset_split="train",
+        matched_count_before_sample=42,
+        sampling_strategy="filter_then_seeded_reservoir",
+        filter_summary="no filters",
     )
 
 
@@ -286,7 +290,8 @@ def test_create_run_inserts_all_lockin_columns(tmp_path: Path) -> None:
             "SELECT run_id, job_id, dataset_name, dataset_revision, "
             "sample_size, sampling_seed, provider, model_name, temperature, "
             "prompt_version, schema_version, price_context_version, "
-            "concept_hash, price_context_hash, created_at "
+            "concept_hash, price_context_hash, created_at, dataset_split, "
+            "matched_count_before_sample, sampling_strategy, filter_summary "
             "FROM runs WHERE run_id = ?",
             (meta.run_id,),
         ).fetchone()
@@ -307,6 +312,10 @@ def test_create_run_inserts_all_lockin_columns(tmp_path: Path) -> None:
     assert row[12] == meta.concept_hash
     assert row[13] == meta.price_context_hash
     assert _ISO8601_Z_RE.match(row[14])
+    assert row[15] == meta.dataset_split
+    assert row[16] == meta.matched_count_before_sample
+    assert row[17] == meta.sampling_strategy
+    assert row[18] == meta.filter_summary
 
 
 def test_create_run_raises_integrity_error_on_bad_job_fk(tmp_path: Path) -> None:

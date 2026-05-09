@@ -15,6 +15,7 @@ import csv
 import html
 import io
 import json
+import logging
 import os
 import sys
 import time
@@ -56,7 +57,6 @@ from src.data_loader import (
     LoadedDataset,
     load_huggingface_dataset,
     load_local_file,
-    normalize_rows_to_personas,
     validate_local_path,
 )
 from src.db import get_connection, init_db
@@ -89,7 +89,11 @@ from src.llm_client import (
 from src.llm_client import (
     parse_evaluation_result as parse_llm_evaluation_result,
 )
-from src.persona_filter import PersonaFilter, apply_filter, sample_to_result
+from src.orchestrator import _load_and_sample as _orchestrator_load_and_sample
+from src.persona_filter import (
+    PersonaFilter,
+    filter_summary,
+)
 from src.persona_normalizer import Persona
 from src.pricing_config import ModelPricing, get_model_pricing, load_pricing_config
 from src.prompt_builder import (
@@ -100,17 +104,19 @@ from src.prompt_builder import (
 )
 from src.report_writer import render_csv, render_markdown, required_footer_text
 from src.result_parser import EvaluationResult, parse_evaluation_result
-from src.secrets_loader import HF_TOKEN_VAR, get_provider_key, load_secrets_from_env_path
+from src.secrets_loader import get_provider_key, load_secrets_from_env_path
 from src.worker import WorkerInput, start_worker_thread
 
-DB_PATH: Path = Path("cache") / "screener.db"
-PRICING_CONFIG_PATH: Path = Path("config") / "pricing_config.yaml"
-PROMPT_TEMPLATE_PATH: Path = Path("prompts") / "concept_eval_ko_v0_3.md"
+APP_VERSION = "0.5.3"
+DB_PATH: Path = REPO_ROOT / "cache" / "screener.db"
+PRICING_CONFIG_PATH: Path = REPO_ROOT / "config" / "pricing_config.yaml"
+PROMPT_TEMPLATE_PATH: Path = REPO_ROOT / "prompts" / "concept_eval_ko_v0_3.md"
 FABRIC_PATH: Path = REPO_ROOT / "design" / "hero-skyblue-fabric.png"
 DIRECTION_BG_PATH: Path = REPO_ROOT / "design" / "direction-bg.png"
 HF_DATASET_URL = "https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA"
 PUBLIC_GITHUB_REPO_URL = "https://github.com/woooya129-ai/us-fashion-persona"
 PUBLIC_GITHUB_LICENSE_URL = f"{PUBLIC_GITHUB_REPO_URL}/blob/main/LICENSE"
+logger = logging.getLogger(__name__)
 
 # GitHub Octicons "mark-github" (16x16), same path as docs/docs.html.
 GITHUB_MARK_PATH = (
@@ -304,7 +310,7 @@ UI_COPY: dict[str, dict[str, str]] = {
             "패션 컨셉을 AI 페르소나 패널을 통해 전문 설문이나 "
             "본조사 전 반응의 흐름을 빠르게 확인합니다."
         ),
-        "hero_eyebrow": "로컬 퍼블릭 베타 · v0.3",
+        "hero_eyebrow": f"로컬 퍼블릭 베타 · v{APP_VERSION}",
         "hero_pill_1": "로컬 실행",
         "hero_pill_2": "원문 저장 없음",
         "hero_pill_3": "리포트 내보내기",
@@ -315,6 +321,7 @@ UI_COPY: dict[str, dict[str, str]] = {
         "hero_docs_aria": "정적 설명 페이지 (docs) 열기",
         "hero_license_aria": "GitHub LICENSE 파일 열기",
         "cost_confirm_toast": "실행하려면 예상 비용·시간 확인에 체크하세요.",
+        "active_job_notice": "진행 중인 작업이 있어. 완료 또는 취소 후 새 실행이 가능해.",
         "guide_eyebrow": "쉬운 4단계 진행",
         "guide_title": "입력하고, 고르고, 실행하고, 읽으면 끝.",
         "guide_1_title": "컨셉 입력",
@@ -533,7 +540,7 @@ UI_COPY: dict[str, dict[str, str]] = {
             "Show a fashion concept to an AI persona panel and quickly check reaction flow "
             "before expert surveys or main research."
         ),
-        "hero_eyebrow": "Local public beta · v0.3",
+        "hero_eyebrow": f"Local public beta · v{APP_VERSION}",
         "hero_pill_1": "Local run",
         "hero_pill_2": "No raw concept storage",
         "hero_pill_3": "Report export",
@@ -544,6 +551,9 @@ UI_COPY: dict[str, dict[str, str]] = {
         "hero_docs_aria": "Open documentation page (docs)",
         "hero_license_aria": "Open GitHub LICENSE file",
         "cost_confirm_toast": "Check the cost/time confirmation box before running.",
+        "active_job_notice": (
+            "A job is already running. Finish or cancel it before starting a new run."
+        ),
         "guide_eyebrow": "Simple 4-step flow",
         "guide_title": "Type it, choose a panel, run, then read.",
         "guide_1_title": "Describe",
@@ -5282,6 +5292,7 @@ def build_persona_payloads(
 ) -> list[dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
     economic_context_text = _economic_context_text(concept, price_context)
+    pricing = model["pricing"]
     for persona in personas:
         prompt = build_prompt(
             persona_id=persona.persona_id,
@@ -5324,6 +5335,8 @@ def build_persona_payloads(
                     "schema_version": prompt.schema_version,
                     "price_context_version": DEFAULT_PRICE_CONTEXT_VERSION,
                     "product_price_usd_cents": concept["product_price_usd_cents"],
+                    "input_per_million_usd": pricing.input_per_million_usd,
+                    "output_per_million_usd": pricing.output_per_million_usd,
                 },
             }
         )
@@ -5338,6 +5351,9 @@ def make_run_meta(
     sampling_seed: int,
     model: dict[str, Any],
     hashes: dict[str, str],
+    matched_count_before_sample: int = 0,
+    sampling_strategy: str = "unknown",
+    filter_summary_text: str = "",
 ) -> RunMeta:
     return RunMeta(
         run_id=run_id,
@@ -5354,6 +5370,10 @@ def make_run_meta(
         price_context_version=DEFAULT_PRICE_CONTEXT_VERSION,
         concept_hash=hashes["concept_hash"],
         price_context_hash=hashes["price_context_hash"],
+        dataset_split=loaded_dataset.dataset_split,
+        matched_count_before_sample=matched_count_before_sample,
+        sampling_strategy=sampling_strategy,
+        filter_summary=filter_summary_text,
     )
 
 
@@ -5375,6 +5395,20 @@ def _cache_store(
     response_json = result.get("response_json")
     if not response_json:
         return
+    input_tokens_actual = result.get("input_tokens_actual")
+    output_tokens_actual = result.get("output_tokens_actual")
+    input_price = metadata.get("input_per_million_usd")
+    output_price = metadata.get("output_per_million_usd")
+    cost_actual_usd = None
+    if (
+        input_tokens_actual is not None
+        and output_tokens_actual is not None
+        and input_price is not None
+        and output_price is not None
+    ):
+        cost_actual_usd = int(input_tokens_actual) / 1_000_000 * float(input_price) + int(
+            output_tokens_actual
+        ) / 1_000_000 * float(output_price)
     with get_connection(db_path) as conn:
         conn.execute(
             "INSERT OR IGNORE INTO llm_cache ("
@@ -5396,9 +5430,9 @@ def _cache_store(
                 metadata["price_context_version"],
                 response_json,
                 None,
-                None,
-                None,
-                None,
+                input_tokens_actual,
+                output_tokens_actual,
+                cost_actual_usd,
                 _utc_now_iso8601_z(),
             ),
         )
@@ -5418,20 +5452,31 @@ def make_llm_evaluator_async(
 ) -> Callable[[dict[str, Any]], Any]:
     async def _evaluate(payload: dict[str, Any]) -> EvaluatorResult:
         prompt = payload["prompt"]
-        request = LLMRequest(
-            provider=provider,
-            model_name=model_name,
-            api_key=api_key,
-            system=prompt["system"],
-            developer=prompt["developer"],
-            user=prompt["user"],
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
-        )
+        request_kwargs = {
+            "provider": provider,
+            "model_name": model_name,
+            "api_key": api_key,
+            "system": prompt["system"],
+            "developer": prompt["developer"],
+            "user": prompt["user"],
+            "max_output_tokens": max_output_tokens,
+        }
         started = time.perf_counter()
         try:
             async with httpx.AsyncClient() as client:
+                request = LLMRequest(temperature=temperature, **request_kwargs)
                 raw = await call_with_retry(request, client)
+                status, parsed, error_summary = parse_llm_evaluation_result(
+                    raw,
+                    expected_persona_id=payload["persona_id"],
+                )
+                if status != "success" and temperature != 0.1:
+                    retry_request = LLMRequest(temperature=0.1, **request_kwargs)
+                    raw = await call_with_retry(retry_request, client)
+                    status, parsed, error_summary = parse_llm_evaluation_result(
+                        raw,
+                        expected_persona_id=payload["persona_id"],
+                    )
         except LLMClientError as exc:
             return {
                 "status": "api_failed",
@@ -5440,10 +5485,6 @@ def make_llm_evaluator_async(
                 "latency_ms": int((time.perf_counter() - started) * 1000),
             }
 
-        status, parsed, error_summary = parse_llm_evaluation_result(
-            raw,
-            expected_persona_id=payload["persona_id"],
-        )
         latency_ms = int((time.perf_counter() - started) * 1000)
         if status == "success" and parsed is not None:
             return {
@@ -5451,6 +5492,8 @@ def make_llm_evaluator_async(
                 "error_type": None,
                 "response_json": _result_json(parsed),
                 "latency_ms": latency_ms,
+                "input_tokens_actual": raw.input_tokens_actual,
+                "output_tokens_actual": raw.output_tokens_actual,
             }
         return {
             "status": "parse_failed",
@@ -5462,11 +5505,11 @@ def make_llm_evaluator_async(
     return _evaluate
 
 
-def make_cached_sync_evaluator(
+def make_cached_evaluator_async(
     db_path: Path,
     payloads: list[dict[str, Any]],
     llm_evaluator_async: Callable[[dict[str, Any]], Any],
-) -> SyncEvaluator:
+) -> Callable[[dict[str, Any]], Any]:
     metadata_by_key = {payload["_cache_key"]: payload["cache_metadata"] for payload in payloads}
 
     async def _evaluate(payload: dict[str, Any]) -> EvaluatorResult:
@@ -5478,14 +5521,34 @@ def make_cached_sync_evaluator(
                 "error_type": None,
                 "response_json": cached_json,
                 "latency_ms": 0,
+                "cache_key": cache_key,
             }
 
         result = await llm_evaluator_async(payload)
         if result.get("status") == "success" and result.get("response_json"):
-            _cache_store(db_path, cache_key, result, metadata_by_key[cache_key])
+            result = dict(result)
+            try:
+                _cache_store(db_path, cache_key, result, metadata_by_key[cache_key])
+            except Exception as exc:  # noqa: BLE001 - cache is best-effort.
+                logger.warning(
+                    "cache_store failed; continuing successful evaluation without cache FK: %s",
+                    type(exc).__name__,
+                )
+            else:
+                result["cache_key"] = cache_key
         return result
 
-    return make_sync_evaluator_for_worker(_evaluate)
+    return _evaluate
+
+
+def make_cached_sync_evaluator(
+    db_path: Path,
+    payloads: list[dict[str, Any]],
+    llm_evaluator_async: Callable[[dict[str, Any]], Any],
+) -> SyncEvaluator:
+    return make_sync_evaluator_for_worker(
+        make_cached_evaluator_async(db_path, payloads, llm_evaluator_async)
+    )
 
 
 def load_result_rows(db_path: Path, run_id: str) -> list[ResultRow]:
@@ -5510,6 +5573,7 @@ def load_result_rows(db_path: Path, run_id: str) -> list[ResultRow]:
 def build_run_report(
     result_rows: list[ResultRow],
     persona_attributes: dict[str, dict[str, Any]],
+    price_context: dict[str, Any] | None = None,
 ) -> RunReport:
     parsed_results: list[EvaluationResult] = []
     parse_failed = 0
@@ -5537,27 +5601,42 @@ def build_run_report(
     )
     report = aggregate(parsed_results, persona_attributes, quality)
     return RunReport(
-        report_markdown=render_markdown(report),
-        report_csv=render_csv(report),
+        report_markdown=render_markdown(report, price_context),
+        report_csv=render_csv(report, price_context),
         quality=quality,
     )
 
 
-def _load_and_sample(dataset: dict[str, Any], sample: dict[str, Any]):
+def _sampling_strategy_for_dataset(dataset: dict[str, Any]) -> str:
     if dataset["source"] == "huggingface":
-        loaded, rows = load_huggingface_dataset(
-            dataset_id=dataset["dataset_id"],
-            split=dataset["split"],
-            streaming=True,
-            revision=dataset["revision"],
-        )
-    else:
-        loaded, rows = load_local_file(Path(dataset["local_path"]))
+        return "filter_then_seeded_reservoir"
+    return "filter_then_seeded_random_sample"
 
-    personas = list(normalize_rows_to_personas(rows))
-    filtered = apply_filter(personas, sample["filter"])
-    sampled = sample_to_result(filtered, sample["sample_size"], sample["sampling_seed"])
-    return loaded, sampled
+
+def _load_and_sample(
+    dataset: dict[str, Any],
+    sample: dict[str, Any],
+    *,
+    hf_token: str | None = None,
+):
+    return _orchestrator_load_and_sample(
+        dataset,
+        sample,
+        hf_token=hf_token,
+        load_huggingface_dataset_fn=load_huggingface_dataset,
+        load_local_file_fn=load_local_file,
+    )
+
+
+def _has_active_job_in_progress() -> bool:
+    job_id = st.session_state.get("active_job_id")
+    if not job_id:
+        return False
+    try:
+        job = load_job_stats(DB_PATH, str(job_id))
+    except KeyError:
+        return False
+    return job.status not in TERMINAL_STATUSES
 
 
 def start_screening(
@@ -5570,18 +5649,12 @@ def start_screening(
     api_key: str,
 ) -> None:
     init_db(DB_PATH)
-    hf_token = str(model.get("hf_token", "")).strip()
-    previous_hf_token = os.environ.get(HF_TOKEN_VAR)
-    if hf_token:
-        os.environ[HF_TOKEN_VAR] = hf_token
-    try:
-        loaded, sampled = _load_and_sample(dataset, sample)
-    finally:
-        if hf_token:
-            if previous_hf_token is None:
-                os.environ.pop(HF_TOKEN_VAR, None)
-            else:
-                os.environ[HF_TOKEN_VAR] = previous_hf_token
+    if _has_active_job_in_progress():
+        active_lang = "KR" if st.session_state.get("kfps_lang_is_kor") else "EN"
+        st.warning(ui_text(active_lang, "active_job_notice"))
+        return
+    hf_token = str(model.get("hf_token", "")).strip() or None
+    loaded, sampled = _load_and_sample(dataset, sample, hf_token=hf_token)
     if not sampled.rows:
         st.error("필터 조건에 맞는 페르소나가 0명이다.")
         return
@@ -5605,6 +5678,9 @@ def start_screening(
         sampling_seed=sampled.sampling_seed,
         model=model,
         hashes=hashes,
+        matched_count_before_sample=sampled.matched_count_before_sample,
+        sampling_strategy=_sampling_strategy_for_dataset(dataset),
+        filter_summary_text=filter_summary(sample["filter"]),
     )
     llm_evaluator = make_llm_evaluator_async(
         provider=_provider_from_str(model["provider"]),
@@ -5612,13 +5688,14 @@ def start_screening(
         api_key=api_key,
         temperature=float(model["temperature"]),
     )
-    evaluator = make_cached_sync_evaluator(DB_PATH, payloads, llm_evaluator)
+    evaluator = make_cached_evaluator_async(DB_PATH, payloads, llm_evaluator)
     worker_input = WorkerInput(
         db_path=DB_PATH,
         job_id=job_id,
         run_meta=run_meta,
         persona_payloads=payloads,
-        evaluator=evaluator,
+        evaluator_async=evaluator,
+        concurrency=DEFAULT_CONCURRENCY,
     )
     thread = start_worker_thread(worker_input)
     st.session_state["active_job_id"] = job_id
@@ -5627,6 +5704,7 @@ def start_screening(
     st.session_state["active_persona_attributes"] = {
         persona.persona_id: _persona_attributes(persona) for persona in sampled.rows
     }
+    st.session_state["active_price_context"] = price_context
     st.session_state["active_thread_name"] = thread.name
     st.session_state["scroll_to_persona_results"] = True
     st.success(f"작업 시작: {job_id}")
@@ -5676,7 +5754,11 @@ def _render_job_panel_impl(lang: str) -> None:
 
     persona_attributes = st.session_state.get("active_persona_attributes", {})
     try:
-        run_report = build_run_report(result_rows, persona_attributes)
+        run_report = build_run_report(
+            result_rows,
+            persona_attributes,
+            st.session_state.get("active_price_context"),
+        )
     except ValueError as exc:
         st.error(f"리포트 문구 검증 실패: {type(exc).__name__}")
         return
@@ -5840,6 +5922,7 @@ def main() -> None:
         except ValueError as exc:
             st.error(f"실행 준비 실패: {type(exc).__name__}")
     has_user_concept_input = bool(concept.get("description"))
+    active_job_in_progress = _has_active_job_in_progress()
     run_button_disabled = not (
         cost_state.get("ready")
         and confirmed
@@ -5848,9 +5931,12 @@ def main() -> None:
         and concept["category"]
         and api_key
         and local_ready
+        and not active_job_in_progress
     )
     if not api_key:
         render_inline_note(ui_text(lang, "need_api_key"))
+    if active_job_in_progress:
+        render_inline_note(ui_text(lang, "active_job_notice"))
 
     render_enter_button(enter_button_placeholder, lang, disabled=run_button_disabled)
 

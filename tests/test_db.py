@@ -86,7 +86,49 @@ class TestInitDb:
         init_db(db_path)
         with sqlite3.connect(db_path) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
-        assert {"provider", "price_context_version", "dataset_revision"}.issubset(cols)
+        assert {
+            "provider",
+            "price_context_version",
+            "dataset_revision",
+            "dataset_split",
+            "matched_count_before_sample",
+            "sampling_strategy",
+            "filter_summary",
+        }.issubset(cols)
+
+    def test_init_db_migrates_existing_runs_table_traceability_columns(self, tmp_path: Path):
+        db_path = tmp_path / "legacy.db"
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "CREATE TABLE jobs ("
+                "job_id TEXT PRIMARY KEY, status TEXT NOT NULL, created_at TEXT NOT NULL, "
+                "started_at TEXT, completed_at TEXT, cancel_requested INTEGER NOT NULL DEFAULT 0, "
+                "total_count INTEGER NOT NULL DEFAULT 0, cached_count INTEGER NOT NULL DEFAULT 0, "
+                "success_count INTEGER NOT NULL DEFAULT 0, failed_count INTEGER NOT NULL DEFAULT 0)"
+            )
+            conn.execute(
+                "CREATE TABLE runs ("
+                "run_id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(job_id), "
+                "created_at TEXT NOT NULL, dataset_name TEXT NOT NULL, "
+                "dataset_revision TEXT NOT NULL, sample_size INTEGER NOT NULL, "
+                "sampling_seed INTEGER NOT NULL, provider TEXT NOT NULL, "
+                "model_name TEXT NOT NULL, temperature REAL NOT NULL, "
+                "prompt_version TEXT NOT NULL, schema_version TEXT NOT NULL, "
+                "price_context_version TEXT NOT NULL, concept_hash TEXT NOT NULL, "
+                "price_context_hash TEXT NOT NULL)"
+            )
+            conn.commit()
+
+        init_db(db_path)
+
+        with sqlite3.connect(db_path) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+        assert {
+            "dataset_split",
+            "matched_count_before_sample",
+            "sampling_strategy",
+            "filter_summary",
+        }.issubset(cols)
 
     def test_llm_cache_has_v12_columns(self, tmp_path: Path):
         db_path = tmp_path / "test.db"

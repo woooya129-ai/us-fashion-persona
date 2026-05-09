@@ -1,4 +1,4 @@
-# Secrets and local credentials
+# 자격증명
 .env
 .env.*
 !.env.example
@@ -7,29 +7,42 @@
 id_rsa*
 id_ed25519*
 
-# Local data and runtime output
+# 데이터
 data/raw/*
 data/processed/*
 data/cached/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/cached/.gitkeep
-cache/*
-outputs/*
-logs/*
-!cache/.gitkeep
-!outputs/.gitkeep
-!logs/.gitkeep
 
-# Generated data files
+# 캐시
+cache/*
 *.db
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
+!cache/.gitkeep
+
+# 출력물
+outputs/*
+!outputs/.gitkeep
+
+# config 산출물 보호 (current-update-review I5)
+# 현재 commit 대상은 pricing_config.yaml + .gitkeep 만.
+config/*.local.*
+config/*secret*
+config/*credential*
+config/local.yaml
+config/local.yml
+config/secrets.yaml
+config/secrets.yml
+!config/pricing_config.yaml
+!config/.gitkeep
+
+# 데이터 파일
 *.parquet
 *.pkl
 *.h5
-*.log
 
 # Python
 __pycache__/
@@ -44,12 +57,27 @@ htmlcov/
 venv/
 env/
 
-# Editor and temporary files
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 .DS_Store
+
+# 로그
+*.log
+logs/*
+!logs/.gitkeep
+
+# 임시 파일
 *.tmp
 *.bak
 *~
+
+# Obsidian local vault state/plugins
+.obsidian/
+
+# Claude/Codex local worktrees (runtime only, never commit)
+.claude/worktrees/
+.codex-tmp-*/
+.pytest-tmp/

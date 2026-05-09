@@ -112,6 +112,10 @@ class RunMeta:
     price_context_version: str
     concept_hash: str
     price_context_hash: str
+    dataset_split: str | None = None
+    matched_count_before_sample: int = 0
+    sampling_strategy: str = "unknown"
+    filter_summary: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -319,8 +323,9 @@ def create_run(db_path: Path, meta: RunMeta) -> None:
             "  run_id, job_id, created_at, dataset_name, dataset_revision, "
             "  sample_size, sampling_seed, provider, model_name, temperature, "
             "  prompt_version, schema_version, price_context_version, "
-            "  concept_hash, price_context_hash"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "  concept_hash, price_context_hash, dataset_split, "
+            "  matched_count_before_sample, sampling_strategy, filter_summary"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 meta.run_id,
                 meta.job_id,
@@ -337,6 +342,10 @@ def create_run(db_path: Path, meta: RunMeta) -> None:
                 meta.price_context_version,
                 meta.concept_hash,
                 meta.price_context_hash,
+                meta.dataset_split,
+                int(meta.matched_count_before_sample),
+                meta.sampling_strategy,
+                meta.filter_summary,
             ),
         )
 

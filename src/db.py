@@ -44,7 +44,11 @@ CREATE TABLE IF NOT EXISTS runs (
     schema_version          TEXT NOT NULL,
     price_context_version   TEXT NOT NULL,
     concept_hash            TEXT NOT NULL,
-    price_context_hash      TEXT NOT NULL
+    price_context_hash      TEXT NOT NULL,
+    dataset_split           TEXT,
+    matched_count_before_sample INTEGER NOT NULL DEFAULT 0,
+    sampling_strategy       TEXT NOT NULL DEFAULT 'unknown',
+    filter_summary          TEXT NOT NULL DEFAULT ''
 )
 """
 
@@ -85,6 +89,17 @@ CREATE TABLE IF NOT EXISTS run_results (
 
 ALL_DDL: list[str] = [DDL_JOBS, DDL_RUNS, DDL_LLM_CACHE, DDL_RUN_RESULTS]
 
+RUNS_MIGRATIONS: dict[str, str] = {
+    "dataset_split": "ALTER TABLE runs ADD COLUMN dataset_split TEXT",
+    "matched_count_before_sample": (
+        "ALTER TABLE runs ADD COLUMN matched_count_before_sample INTEGER NOT NULL DEFAULT 0"
+    ),
+    "sampling_strategy": (
+        "ALTER TABLE runs ADD COLUMN sampling_strategy TEXT NOT NULL DEFAULT 'unknown'"
+    ),
+    "filter_summary": "ALTER TABLE runs ADD COLUMN filter_summary TEXT NOT NULL DEFAULT ''",
+}
+
 ALL_INDICES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)",
     "CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at)",
@@ -107,6 +122,14 @@ CONNECTION_LEVEL_PRAGMAS: list[str] = [
 ]
 
 
+def _ensure_runs_migrations(conn: sqlite3.Connection) -> None:
+    """Add traceability columns for DBs created before v0.4."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+    for column, sql in RUNS_MIGRATIONS.items():
+        if column not in existing:
+            conn.execute(sql)
+
+
 def init_db(db_path: Path) -> None:
     """앱 시작 시 1회 호출. 부모 디렉토리 자동 생성, DDL + 인덱스 + db-level PRAGMA 적용."""
     db_path = Path(db_path)
@@ -120,6 +143,7 @@ def init_db(db_path: Path) -> None:
             conn.execute(pragma)
         for ddl in ALL_DDL:
             conn.execute(ddl)
+        _ensure_runs_migrations(conn)
         for index_sql in ALL_INDICES:
             conn.execute(index_sql)
         conn.commit()

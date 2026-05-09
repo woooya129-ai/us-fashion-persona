@@ -14,6 +14,7 @@ from src.report_writer import (
     FORBIDDEN_PHRASES,
     assert_safe_phrasing,
     escape_csv_cell,
+    escape_markdown_table_cell,
     render_csv,
     render_markdown,
     required_footer_text,
@@ -45,6 +46,19 @@ def full_report() -> AggregateReport:
     return aggregate(MOCK_RESULTS, MOCK_PERSONA_ATTRIBUTES, _DEFAULT_QUALITY)
 
 
+@pytest.fixture()
+def sample_price_context() -> dict:
+    return {
+        "price_burden_ratio": 0.09,
+        "price_burden_label": "low",
+        "apparel_services_annual_usd": 2001,
+        "bls_average_income_before_taxes_usd": 104207,
+        "census_median_household_income_usd": 83730,
+        "fed_scf_median_family_net_worth_usd": 192900,
+        "fed_scf_mean_family_net_worth_usd": 1063700,
+    }
+
+
 # ---------------------------------------------------------------------------
 # required_footer_text
 # ---------------------------------------------------------------------------
@@ -62,13 +76,16 @@ class TestRequiredFooterText:
 
     def test_data_source_line(self):
         footer = required_footer_text()
-        expected = "Data source (only external dataset): NVIDIA Nemotron-Personas-USA, CC BY 4.0."
+        expected = "Persona dataset: NVIDIA Nemotron-Personas-USA, CC BY 4.0."
         assert expected in footer
         assert "https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA" in footer
 
     def test_attribution_and_obfuscated_contact_line(self):
         footer = required_footer_text()
-        assert "US Fashion Persona Screener." in footer
+        assert "us-fashion-persona." in footer
+        assert "aggregate statistics" in footer
+        assert "it does not infer individual income or assets" in footer
+        assert "Built with Codex and Claude Code." in footer
         assert "Contact: woooya129 [at] gmail [dot] com" in footer
         assert "woooya129@gmail.com" not in footer
 
@@ -158,7 +175,7 @@ class TestRenderMarkdown:
 
     def test_data_source_line_present(self, full_report):
         md = render_markdown(full_report)
-        expected = "Data source (only external dataset): NVIDIA Nemotron-Personas-USA, CC BY 4.0."
+        expected = "Persona dataset: NVIDIA Nemotron-Personas-USA, CC BY 4.0."
         assert expected in md
 
     def test_does_not_raise_safe_phrasing(self, full_report):
@@ -192,6 +209,13 @@ class TestRenderMarkdown:
         md = render_markdown(full_report)
         assert isinstance(md, str)
         assert len(md) > 100
+
+    def test_us_price_context_section_present(self, full_report, sample_price_context):
+        md = render_markdown(full_report, sample_price_context)
+        assert "## 미국 공식 경제 맥락" in md
+        assert "BLS 2024 annual Apparel and services" in md
+        assert "Census 2024 median household income" in md
+        assert "개별 페르소나의 실제 소득" in md
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +264,12 @@ class TestRenderCsv:
     def test_csv_contains_sentiment_data(self, full_report):
         csv_text = render_csv(full_report)
         assert "반응분포" in csv_text
+
+    def test_csv_includes_us_price_context(self, full_report, sample_price_context):
+        csv_text = render_csv(full_report, sample_price_context)
+        assert "미국공식경제맥락" in csv_text
+        assert "Median household income" in csv_text
+        assert "$83,730" in csv_text
 
     def test_forbidden_phrase_in_reasons_raises(self):
         # 금지 표현이 EvaluationResult.main_reasons 를 통해 CSV 셀에 들어오면
@@ -312,6 +342,17 @@ class TestEscapeCsvCell:
     def test_non_string_converted(self):
         assert escape_csv_cell(42) == "42"
         assert escape_csv_cell(3.14) == "3.14"
+
+
+class TestEscapeMarkdownTableCell:
+    def test_pipe_is_escaped(self):
+        assert escape_markdown_table_cell("A | B") == r"A \| B"
+
+    def test_html_is_escaped(self):
+        assert escape_markdown_table_cell("<tag>") == "&lt;tag&gt;"
+
+    def test_newline_becomes_br(self):
+        assert escape_markdown_table_cell("a\nb") == "a<br>b"
 
 
 # ---------------------------------------------------------------------------

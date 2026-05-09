@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software or its documented workflow, cite it as below."
+title: "us-fashion-persona: Synthetic Persona Pre-Screening for US Fashion Concepts"
+version: 0.5.3
+date-released: 2026-05-10
+type: software
+authors:
+  - family-names: "Kim"
+    given-names: "Woody"
+repository-code: "https://github.com/woooya129-ai/us-fashion-persona"
+url: "https://us-fashion-persona.com"
+license: "AGPL-3.0-only"
+abstract: >-
+  us-fashion-persona is a local-first tool for pre-screening US fashion
+  product concepts with synthetic personas, structured product cards, official
+  U.S. aggregate-statistics context, LLM evaluation, validation, aggregation,
+  and Markdown/CSV reports.
+keywords:
+  - synthetic personas
+  - fashion concept testing
+  - US fashion
+  - local-first
+  - Streamlit

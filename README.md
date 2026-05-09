@@ -1,23 +1,30 @@
 # us-fashion-persona
 
-![AI Digital Fashion Panel overview](docs/assets/us-fashion-persona-images.jpeg)
+## Check US Fashion Concepts With AI Personas First
 
-## Check a US fashion idea before a real survey
-
+[![Version](https://img.shields.io/badge/version-0.5.3-0F766E)](pyproject.toml)
 [![HF Dataset](https://img.shields.io/badge/HF-Dataset-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA)
 [![GitHub](https://img.shields.io/badge/GitHub-us--fashion--persona-181717?logo=github&logoColor=white)](https://github.com/woooya129-ai/us-fashion-persona)
 [![Twin Project](https://img.shields.io/badge/GitHub-k--fashion--persona-181717?logo=github&logoColor=white)](https://github.com/woooya129-ai/k-fashion-persona)
-[![Docs](https://img.shields.io/badge/Docs-INSTALL--ENG-2563EB?logo=readthedocs&logoColor=white)](INSTALL-ENG.md)
+[![Docs](https://img.shields.io/badge/Docs-INSTALL--ENG-2563EB?logo=readthedocs&logoColor=white)](docs/INSTALL-ENG.md)
+[![Korean README](https://img.shields.io/badge/README-Korean-2563EB)](README-KOR.md)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-0F766E.svg)](LICENSE)
+[![Citation](https://img.shields.io/badge/citation-CFF-2563EB)](CITATION.cff)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Woody%20Kim-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/woody-kim-ab2741403/)
 
-us-fashion-persona is a local AI panel tool for fashion concept screening.
+us-fashion-persona is a local-first Streamlit tool for checking US fashion
+product concepts with synthetic AI personas before launch or formal research.
 
-The twin Korea-context project is [k-fashion-persona](https://github.com/woooya129-ai/k-fashion-persona).
+The Korea-context twin project is
+[k-fashion-persona](https://github.com/woooya129-ai/k-fashion-persona).
 
-You enter a fashion product idea. The app shows it to synthetic personas with a US context. Then it gives early signals about fit, interest, hesitation, and risk.
+Enter a product card with category, price, fit, material, color, season,
+wearing context, style tone, brand message, and target hypothesis. The app
+scans interest reasons, hesitation points, price burden, fit risk, material
+care burden, styling friction, and occasion mismatch.
 
-This tool helps you prepare for a better real survey. It does not replace a real survey, real customer interviews, sales data, or expert review.
+This is not a real consumer prediction, purchase-rate prediction, sales
+prediction, or market-share prediction service.
 
 ```mermaid
 flowchart LR
@@ -32,164 +39,60 @@ flowchart LR
 
 ![us-fashion-persona result screen](docs/assets/us-fashion-persona-screenshot-04.webp)
 
-## What It Checks
+## What It Does
 
-- Product type, price, fit, material, and color
-- Season and wearing situation
-- Style tone and brand message
-- Target customer idea
-- Why a persona may like it
-- Why a persona may hesitate
-- Price resistance and fashion risk signals
-- A Markdown or CSV report
+- Builds a synthetic persona panel with US context
+- Accepts a product-card style fashion concept
+- Filters by age, gender, region, and occupation
+- Uses seed-based sampling
+- Lets you choose LLM provider/model
+- Accepts OpenAI, Anthropic, or Gemini API keys in the UI
+- Accepts a Hugging Face token in the UI or external `.env`
+- Uses BLS, U.S. Census, and Federal Reserve aggregate-statistics context
+- Exports Markdown and CSV reports
 
-## How It Works
+## Data And Statistics
 
-1. You write a fashion concept in a product card.
-2. The app loads synthetic personas from NVIDIA Nemotron-Personas-USA.
-3. You can filter the panel by fields like age, gender, region, or job.
-4. The app samples a persona panel with a seed.
-5. An LLM checks the concept from each persona view.
-6. The app validates the answers with a fixed JSON schema.
-7. You read the result as a report.
+The default persona dataset is
+[NVIDIA Nemotron-Personas-USA](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA).
+It is a synthetic persona dataset, not real-person data.
 
-## Report Example
+According to the official Hugging Face dataset page, the pinned USA dataset
+contains 1M records, 6M persona descriptions, 22 fields plus the UUID, and
+2.69GB of Parquet files. The app's default mode uses Hugging Face `datasets`
+streaming, so it does not load the full dataset into RAM at once. Filtering and
+reservoir sampling run locally.
 
-This is a shortened example of a Markdown report. The numbers below are illustrative synthetic values. Real output changes with the product card, persona filters, provider/model, and sampling seed.
+The app does not infer a persona's actual income, wealth, or purchasing power.
+Report and prompt context use fixed aggregate statistics from official U.S.
+sources:
 
-Example input:
+- BLS Consumer Expenditure Survey 2024: annual Apparel and services spending
+- U.S. Census CPS ASEC 2024 income release: median household income
+- Federal Reserve Survey of Consumer Finances 2022: median and mean family net worth
 
-- Category: women's lightweight field jacket
-- Price: $189
-- Material: water-resistant cotton blend
-- Colors: olive, navy
-- Wearing context: commute, weekend errands, light travel
-- Target idea: women 25 to 39 who want practical daily outerwear
+These values are directional aggregate context only. Use real surveys, sales
+data, and expert review for final decisions.
 
-```markdown
-# us-fashion-persona synthetic panel report
-> Warning: Directional reference only. Not valid for segment comparison.
+## Prompt Version And Optional Assets
 
-## Synthetic panel response distribution, n=40
+- Default prompt: `prompts/concept_eval_ko_v0_3.md`
+- Prompt contract: fixed JSON output schema with validation and retry handling
+- Optional visual context: image URLs or file references can be included as
+  product-card context, but no generated or uploaded image is bundled in this
+  repository
 
-| Metric | Value |
-|---|---|
-| Positive responses | 17 / 42.5% |
-| Neutral responses | 16 / 40.0% |
-| Negative responses | 7 / 17.5% |
-| Average interest score | 6.3 / 10 |
-| Price burden high or above | 0 / 0.0% |
-| Parse/API failed or excluded | 2 |
+## Runtime Architecture
 
-## Price burden distribution
+v0.5.3 keeps the Streamlit entrypoint while separating small runtime seams:
 
-| Label | Count |
-|---|---|
-| low | 36 |
-| medium | 4 |
-| high | 0 |
-| very_high | 0 |
-| unknown | 0 |
+- `src/app_config.py`: app metadata and project paths
+- `src/orchestrator/`: dataset loading and sampling orchestration
+- `src/ui/assets.py`: encoded UI asset loading
+- `src/data_loader.py`: explicit Hugging Face token handling without mutating
+  process environment state
 
-## Main positive reasons
-
-- Works for commute and weekend casual use (8)
-- Olive and navy are easy to style with denim or black basics (6)
-- Water-resistant fabric feels useful for light travel (5)
-
-## Main hesitation reasons
-
-- Fit and size guidance need clearer photos or measurements (5)
-- The price needs material and construction proof (4)
-- Care instructions are not clear enough (3)
-
-## Fashion risk signals
-
-| Category | Signals | Example concern |
-|---|---:|---|
-| Price burden | 4 | price needs stronger value proof |
-| Fit risk | 5 | boxy fit may not work for all body types |
-| Material/care burden | 3 | care instructions are unclear |
-| Styling difficulty | 2 | olive color may feel too utility-like |
-| Wearing context mismatch | 1 | may be too casual for some offices |
-| Purchase hesitation | 3 | similar jackets are easy to find |
-| Style burden | 2 | design may feel too basic |
-
-## Candidate revisions
-
-1. Add fit photos and a size guide for different body shapes.
-2. Explain fabric weight, water resistance, and lining details.
-3. Show two styling examples: office casual and weekend travel.
-
-## Representative persona reactions
-
-| Segment | Reaction | Interest | Main reason |
-|---|---|---:|---|
-| 29 / California / office worker | positive | 8 | commute and weekend use both fit |
-| 36 / Texas / retail manager | neutral | 6 | practical, but price proof is needed |
-| 42 / Illinois / self-employed | negative | 3 | too similar to jackets already owned |
-
----
-
-This is an AI synthetic persona pre-screening report.
-It does not replace real surveys, sales data, legal advice, or final business decisions.
-Data source: NVIDIA Nemotron-Personas-USA.
-```
-
-CSV reports flatten similar content into `section,key,value` rows.
-
-```csv
-section,key,value
-response_distribution,synthetic panel n=40 - positive,17 / 42.5%
-response_distribution,average interest score,6.3 / 10
-fashion_risk_signal,fit risk,5 signals
-candidate_revision,rank1_fit,Add fit photos and a size guide for different body shapes.
-representative_persona,rank1,29 / California / office worker | positive | interest 8 | commute and weekend use both fit
-```
-
-## What The Result Means
-
-Use the result as a pre-screen.
-
-Good use:
-
-- Find weak parts in the product story.
-- Compare two early concept directions.
-- Check if price, material, or fit may create friction.
-- Prepare better questions for a real survey.
-
-Bad use:
-
-- Predict real sales.
-- Estimate real buying conversion.
-- Replace a real consumer survey.
-- Make a final launch decision from AI output only.
-
-## Data
-
-The main external dataset is [NVIDIA Nemotron-Personas-USA](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA).
-
-The dataset is synthetic. It is not a list of real people. It gives persona-style context for early product thinking.
-
-For economic context, this app uses three official U.S. baselines:
-
-- BLS 2024 Consumer Expenditure `Apparel and services`: $2,001 per year
-- Census CPS ASEC 2024 median household income: $83,730
-- Federal Reserve SCF 2022 median family net worth: $192,900
-
-These values help show price burden, income context, and asset context. They are national reference points only. They are not persona-specific income, wealth, purchasing power, or purchase intent.
-
-## Run Locally
-
-This is not a hosted service. Run it on your own computer.
-
-Requirements:
-
-- Python 3.11 or higher
-- uv
-- Streamlit
-- Your own LLM provider API key
-- Hugging Face access if needed
+## Quick Start
 
 ```bash
 git clone https://github.com/woooya129-ai/us-fashion-persona.git
@@ -198,24 +101,52 @@ uv sync --all-extras --dev
 uv run streamlit run src/app.py
 ```
 
-Open `http://localhost:8501` in your browser.
+Open:
 
-For more setup steps, read [INSTALL-ENG.md](INSTALL-ENG.md).
+```text
+http://localhost:8501
+```
 
-## API Key And Local Data
+For full setup details, see [docs/INSTALL-ENG.md](docs/INSTALL-ENG.md).
 
-- Enter your API key in the Streamlit password field.
-- Do not commit API keys.
-- API keys, cache files, outputs, logs, and raw data are not included in this public repository.
-- Put local persona files under `data/`. The recommended folder is `data/raw/`.
-- The app stores run metadata in a local SQLite cache.
-- It does not store raw API keys, Hugging Face tokens, raw provider responses, or raw concept text as separate columns.
+## Local Checks
 
-## License
+```bash
+uv run ruff check .
+uv run ruff format src tests --check
+uv run pytest
+uv run bandit -r src -c pyproject.toml
+uv run pip-audit --skip-editable
+uv run pre-commit run --all-files
+```
 
-- Code: GNU AGPL-3.0-only
-- NVIDIA Nemotron-Personas-USA: see the dataset page for its license and attribution terms
+Tests must not call real LLM providers or Hugging Face endpoints unless an
+explicit integration-test path is approved by the maintainer.
 
-Built with Codex and Claude Code.
+## License And Notices
+
+- Source license: GNU AGPL-3.0-only, see `LICENSE`
+- Commercial and dual-license notice: `LICENSE-COMMERCIAL.md`, `NOTICE`
+- Persona dataset: NVIDIA Nemotron-Personas-USA
+- Dataset license: CC BY 4.0 attribution applies to the dataset provider
+- Third-party notices: `docs/THIRD_PARTY_NOTICES.md`
+- Branding policy: `docs/BRANDING_POLICY.md`
+
+us-fashion-persona and k-fashion-persona are twin projects. They use the same
+public AGPL-3.0-only and separate commercial/dual-license notice structure.
+
+Commercial, closed-source, internal SaaS, redistributed-product, or other
+non-AGPL use requires separate written commercial license terms from the
+copyright holder.
 
 Contact: woooya129 [at] gmail [dot] com
+
+### Attribution And Methodology
+
+- Citation format: `CITATION.cff`
+- Methodology and rights positioning: `docs/METHODOLOGY_AND_RIGHTS.md`
+- This repository does not claim ownership of an abstract idea. It separates
+  public source code, documentation, prompts, report structure, branding, and
+  commercial adoption terms.
+- Closed-source products, internal SaaS, paid consulting workflows, and official
+  branding use should be handled through commercial-license discussion.

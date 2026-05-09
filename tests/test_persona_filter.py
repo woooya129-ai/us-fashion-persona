@@ -8,6 +8,7 @@ from src.persona_filter import (
     apply_filter,
     filter_summary,
     preview_first_n,
+    sample_iterable_to_result,
     sample_personas,
     sample_to_result,
 )
@@ -241,6 +242,41 @@ class TestSampleToResult:
         result = sample_to_result(SAMPLE_PERSONAS, 3, seed=42)
         ids = [p.persona_id for p in result.rows]
         assert ids == sorted(ids)
+
+
+class TestSampleIterableToResult:
+    def test_streaming_sample_tracks_matched_count(self):
+        result = sample_iterable_to_result(
+            iter(SAMPLE_PERSONAS),
+            PersonaFilter(state=frozenset(["NY"])),
+            sample_size=10,
+            seed=42,
+        )
+        assert result.matched_count_before_sample == 2
+        assert result.sample_size == 2
+        assert [p.persona_id for p in result.rows] == ["p1", "p4"]
+
+    def test_streaming_sample_is_deterministic(self):
+        personas = [_make(f"p{i:03d}", 20 + i, "F" if i % 2 else "M") for i in range(100)]
+        a = sample_iterable_to_result(iter(personas), PersonaFilter(), sample_size=10, seed=7)
+        b = sample_iterable_to_result(iter(personas), PersonaFilter(), sample_size=10, seed=7)
+        assert [p.persona_id for p in a.rows] == [p.persona_id for p in b.rows]
+        assert a.matched_count_before_sample == 100
+
+    def test_streaming_sample_empty_match(self):
+        result = sample_iterable_to_result(
+            iter(SAMPLE_PERSONAS),
+            PersonaFilter(age_min=100),
+            sample_size=5,
+            seed=42,
+        )
+        assert result.rows == []
+        assert result.matched_count_before_sample == 0
+        assert result.sample_size == 0
+
+    def test_streaming_sample_rejects_non_positive_size(self):
+        with pytest.raises(ValueError):
+            sample_iterable_to_result(iter(SAMPLE_PERSONAS), PersonaFilter(), 0, seed=42)
 
 
 class TestPreviewFirstN:

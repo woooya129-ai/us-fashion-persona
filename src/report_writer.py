@@ -12,9 +12,11 @@ No LLM / HF / DB calls.
 """
 
 import csv
+import html
 import re
 from io import StringIO
 from pathlib import Path
+from typing import Any
 
 from src.aggregator import (
     FASHION_RISK_CATEGORY_KEYS,
@@ -71,10 +73,13 @@ def required_footer_text() -> str:
     return (
         "본 도구는 합성 페르소나와 LLM 기반의 사전 가설 분석 도구입니다.\n"
         "실제 소비자 조사, 매출 예측, 법률 자문, 최종 사업 판단을 대체하지 않습니다.\n"
-        "Data source (only external dataset): NVIDIA Nemotron-Personas-USA, CC BY 4.0.\n"
+        "Persona dataset: NVIDIA Nemotron-Personas-USA, CC BY 4.0.\n"
         "Dataset URL: https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA\n"
         "CC BY 4.0: https://creativecommons.org/licenses/by/4.0/\n"
-        "US Fashion Persona Screener.\n"
+        "us-fashion-persona.\n"
+        "Public statistics context uses BLS, U.S. Census, and Federal Reserve "
+        "aggregate statistics; it does not infer individual income or assets.\n"
+        "Built with Codex and Claude Code.\n"
         f"Contact: {CONTACT_DISPLAY}"
     )
 
@@ -111,6 +116,14 @@ def escape_csv_cell(value: object) -> str:
     if text and text[0] in _FORMULA_START_CHARS:
         return "'" + text
     return text
+
+
+def escape_markdown_table_cell(value: object) -> str:
+    """Escape text inserted into a Markdown table cell."""
+    text = html.escape(str(value), quote=False)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\n", "<br>")
+    return text.replace("|", r"\|")
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +169,10 @@ def _append_fashion_risk_sections(lines: list[str], report: AggregateReport) -> 
         label = FASHION_RISK_CATEGORY_LABELS.get(key, key)
         count = risks.counts.get(key, 0)
         example_text = _format_examples(risks.examples.get(key, []))
-        lines.append(f"| {label} | {count} | {example_text} |")
+        lines.append(
+            f"| {escape_markdown_table_cell(label)} | {count} | "
+            f"{escape_markdown_table_cell(example_text)} |"
+        )
     lines.append("")
     lines.append(
         f"> 분류 대상 concern 총 {risks.total_concerns}건 중 "
@@ -252,7 +268,12 @@ def _append_representative_responses_section(lines: list[str], report: Aggregate
         sentiment = rep.get("sentiment", "")
         score = rep.get("interest_score", "")
         reason = rep.get("main_reasons", "")
-        lines.append(f"| {segment} | {sentiment} | {score} | {reason} |")
+        lines.append(
+            f"| {escape_markdown_table_cell(segment)} | "
+            f"{escape_markdown_table_cell(sentiment)} | "
+            f"{escape_markdown_table_cell(score)} | "
+            f"{escape_markdown_table_cell(reason)} |"
+        )
     lines.append("")
 
 
@@ -295,12 +316,75 @@ def _csv_fashion_rows(writer_row, report: AggregateReport) -> None:
         )
 
 
+def _format_usd(value: object) -> str:
+    try:
+        return f"${float(value):,.0f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _append_price_context_section(lines: list[str], price_context: dict[str, Any] | None) -> None:
+    if not price_context:
+        return
+
+    rows = [
+        (
+            "BLS 2024 annual Apparel and services",
+            price_context.get("apparel_services_annual_usd"),
+            "BLS Consumer Expenditure Survey 2024",
+        ),
+        (
+            "BLS 2024 average income before taxes",
+            price_context.get("bls_average_income_before_taxes_usd"),
+            "BLS Consumer Expenditure Survey 2024",
+        ),
+        (
+            "Census 2024 median household income",
+            price_context.get("census_median_household_income_usd"),
+            "U.S. Census CPS ASEC 2024",
+        ),
+        (
+            "Federal Reserve SCF 2022 median family net worth",
+            price_context.get("fed_scf_median_family_net_worth_usd"),
+            "Federal Reserve SCF 2022",
+        ),
+        (
+            "Federal Reserve SCF 2022 mean family net worth",
+            price_context.get("fed_scf_mean_family_net_worth_usd"),
+            "Federal Reserve SCF 2022",
+        ),
+    ]
+
+    lines.append("## 미국 공식 경제 맥락")
+    lines.append("")
+    lines.append(
+        f"- 제품 가격 / BLS 연간 의류·서비스 기준값: "
+        f"{price_context.get('price_burden_ratio', 0):.2f}배 "
+        f"({price_context.get('price_burden_label', 'unknown')})"
+    )
+    lines.append("")
+    lines.append("| 항목 | 값 | 출처 |")
+    lines.append("|---|---:|---|")
+    for label, value, source in rows:
+        lines.append(
+            f"| {escape_markdown_table_cell(label)} | "
+            f"{escape_markdown_table_cell(_format_usd(value))} | "
+            f"{escape_markdown_table_cell(source)} |"
+        )
+    lines.append("")
+    lines.append(
+        "> 위 값은 BLS, U.S. Census, Federal Reserve의 집계 통계이며, "
+        "개별 페르소나의 실제 소득·자산·구매력을 뜻하지 않습니다."
+    )
+    lines.append("")
+
+
 # ---------------------------------------------------------------------------
 # Markdown render
 # ---------------------------------------------------------------------------
 
 
-def render_markdown(report: AggregateReport) -> str:
+def render_markdown(report: AggregateReport, price_context: dict[str, Any] | None = None) -> str:
     """PM v3 §17.1 메인 지표 + §18.2 Main Results 섹션.
 
     모든 표현은 '합성 패널 N명 기준'으로 시작.
@@ -314,7 +398,7 @@ def render_markdown(report: AggregateReport) -> str:
     lines: list[str] = []
 
     # Header
-    lines.append("# US Fashion Persona Screener — 합성 패널 분석 리포트")
+    lines.append("# us-fashion-persona - 합성 패널 분석 리포트")
     lines.append("")
 
     # Sample warning
@@ -336,6 +420,8 @@ def render_markdown(report: AggregateReport) -> str:
     )
     lines.append(f"| 파싱 실패/제외 | {q.parse_failed + q.api_failed}명 |")
     lines.append("")
+
+    _append_price_context_section(lines, price_context)
 
     # Quality
     lines.append("## 결과 품질")
@@ -389,7 +475,7 @@ def render_markdown(report: AggregateReport) -> str:
         lines.append("|---|---:|---:|---:|")
         for row in rows:
             cell = (
-                f"| {row.segment_label} | {row.n}"
+                f"| {escape_markdown_table_cell(row.segment_label)} | {row.n}"
                 f" | {row.positive_pct}% | {row.avg_interest_score} |"
             )
             lines.append(cell)
@@ -420,7 +506,7 @@ def render_markdown(report: AggregateReport) -> str:
 # ---------------------------------------------------------------------------
 
 
-def render_csv(report: AggregateReport) -> str:
+def render_csv(report: AggregateReport, price_context: dict[str, Any] | None = None) -> str:
     """평면화된 표: section, key, value 컬럼.
 
     formula injection 방어: 모든 셀에 대해 첫 글자가 = / + / - / @ / \\t / \\r 면 ' prefix.
@@ -456,6 +542,47 @@ def render_csv(report: AggregateReport) -> str:
         "가격부담도 high 이상",
         f"{pb.high_or_above_count}명 / {pb.high_or_above_pct}%",
     )
+
+    if price_context:
+        _row(
+            "미국공식경제맥락",
+            "가격 기준 배수",
+            price_context.get("price_burden_ratio", ""),
+        )
+        _row(
+            "미국공식경제맥락",
+            "가격 부담 라벨",
+            price_context.get("price_burden_label", ""),
+        )
+        metric_rows = [
+            (
+                "BLS annual Apparel and services",
+                price_context.get("apparel_services_annual_usd"),
+                "BLS Consumer Expenditure Survey 2024",
+            ),
+            (
+                "BLS average income before taxes",
+                price_context.get("bls_average_income_before_taxes_usd"),
+                "BLS Consumer Expenditure Survey 2024",
+            ),
+            (
+                "Median household income",
+                price_context.get("census_median_household_income_usd"),
+                "U.S. Census CPS ASEC 2024",
+            ),
+            (
+                "Median family net worth",
+                price_context.get("fed_scf_median_family_net_worth_usd"),
+                "Federal Reserve SCF 2022",
+            ),
+            (
+                "Mean family net worth",
+                price_context.get("fed_scf_mean_family_net_worth_usd"),
+                "Federal Reserve SCF 2022",
+            ),
+        ]
+        for label, value, source in metric_rows:
+            _row("미국공식경제맥락_항목", label, f"{_format_usd(value)} | {source}")
 
     # Quality
     _row("결과품질", "성공", q.success)

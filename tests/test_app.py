@@ -19,6 +19,7 @@ from src.data_loader import LoadedDataset
 from src.db import init_db
 from src.llm_client import LLMRawResponse
 from src.persona_normalizer import normalize_persona
+from src.pricing_config import ModelPricing
 from src.result_parser import EvaluationResult
 from tests.fixtures.app_apptest_e2e import install_apptest_e2e_patches
 from tests.fixtures.mock_evaluation_results import MOCK_PERSONA_ATTRIBUTES, MOCK_RESULTS
@@ -111,7 +112,7 @@ def _merge_ui_surface_text(at: AppTest) -> str:
 def _poll_until_terminal_report(at: AppTest, *, max_runs: int = 10) -> AppTest:
     """Worker + fragment may need several script reruns before job reaches terminal UI."""
     marker_avg = "평균 관심도"
-    marker_report = "# US Fashion Persona Screener"
+    marker_report = "# us-fashion-persona"
     last_merged = ""
     for _ in range(max_runs):
         at.run(timeout=10)
@@ -144,6 +145,12 @@ def model() -> dict:
         "model_name": "gpt-4o-mini",
         "provider": "openai",
         "temperature": 0.3,
+        "pricing": ModelPricing(
+            model_name="gpt-4o-mini",
+            provider="openai",
+            input_per_million_usd=0.15,
+            output_per_million_usd=0.6,
+        ),
     }
 
 
@@ -207,6 +214,7 @@ def test_make_run_meta_uses_dataset_and_hash_metadata(
         source="local:test.csv",
         dataset_revision="loaded_at:test",
         total_rows=3,
+        dataset_split="train",
     )
     meta = app.make_run_meta(
         job_id="job-1",
@@ -216,6 +224,9 @@ def test_make_run_meta_uses_dataset_and_hash_metadata(
         sampling_seed=42,
         model=model,
         hashes=hashes,
+        matched_count_before_sample=12,
+        sampling_strategy="filter_then_seeded_reservoir",
+        filter_summary_text="state NY",
     )
 
     assert meta.job_id == "job-1"
@@ -226,6 +237,10 @@ def test_make_run_meta_uses_dataset_and_hash_metadata(
     assert meta.price_context_hash == hashes["price_context_hash"]
     assert meta.prompt_version == app.PROMPT_VERSION
     assert meta.schema_version == app.SCHEMA_VERSION
+    assert meta.dataset_split == "train"
+    assert meta.matched_count_before_sample == 12
+    assert meta.sampling_strategy == "filter_then_seeded_reservoir"
+    assert meta.filter_summary == "state NY"
 
 
 def test_make_price_context_includes_us_official_income_and_asset_baselines() -> None:
@@ -257,6 +272,8 @@ def test_cached_sync_evaluator_uses_cache_without_llm_call(tmp_path: Path) -> No
         "prompt_version": app.PROMPT_VERSION,
         "schema_version": app.SCHEMA_VERSION,
         "price_context_version": app.DEFAULT_PRICE_CONTEXT_VERSION,
+        "input_per_million_usd": 0.15,
+        "output_per_million_usd": 0.6,
     }
     app._cache_store(  # noqa: SLF001 - app integration boundary helper.
         db_path,
@@ -284,6 +301,7 @@ def test_cached_sync_evaluator_uses_cache_without_llm_call(tmp_path: Path) -> No
     assert result["status"] == "cached"
     assert result["response_json"] == response_json
     assert result["latency_ms"] == 0
+    assert result["cache_key"] == cache_key
 
 
 def test_make_llm_evaluator_async_parses_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -325,6 +343,8 @@ def test_make_llm_evaluator_async_parses_success(monkeypatch: pytest.MonkeyPatch
     assert result["error_type"] is None
     assert json.loads(result["response_json"])["persona_id"] == "p001"
     assert result["latency_ms"] >= 0
+    assert result["input_tokens_actual"] == 100
+    assert result["output_tokens_actual"] == 50
 
 
 def test_build_run_report_counts_cached_and_success_rows() -> None:
@@ -358,14 +378,20 @@ def test_build_run_report_counts_cached_and_success_rows() -> None:
             "latency_ms": None,
         },
     ]
-    run_report = app.build_run_report(result_rows, MOCK_PERSONA_ATTRIBUTES)
+    run_report = app.build_run_report(
+        result_rows,
+        MOCK_PERSONA_ATTRIBUTES,
+        app.make_price_context(15_900),
+    )
 
     assert run_report.quality.success == 2
     assert run_report.quality.parse_failed == 1
     assert run_report.quality.api_failed == 1
     assert run_report.quality.distribution_included == 2
     assert "합성 패널 2명 기준" in run_report.report_markdown
+    assert "미국 공식 경제 맥락" in run_report.report_markdown
     assert "section,key,value" in run_report.report_csv
+    assert "미국공식경제맥락" in run_report.report_csv
 
     opinion_rows = app.build_persona_opinion_rows(result_rows, MOCK_PERSONA_ATTRIBUTES)
     assert len(opinion_rows) == 2
@@ -489,7 +515,7 @@ def test_app_source_uses_readable_comfort_tokens_with_targeted_hero_gradient() -
     assert "docs/docs.html" in source
     assert "📄" in source
     assert "woooya129-ai/us-fashion-persona" in source
-    assert "로컬 퍼블릭 베타 · v0.3" in source
+    assert "로컬 퍼블릭 베타 · v{APP_VERSION}" in source
     assert "설명 ⇄ 도구" not in source
     assert "st.segmented_control" in source
 
@@ -534,10 +560,50 @@ def test_app_sampling_and_filter_limits_are_explicit() -> None:
     assert app.ui_text("KR", "sampling_seed") == "sampling-seed"
 
 
+def test_v053_runtime_structure_modules_keep_us_sources() -> None:
+    import src.app_config as app_config
+    import src.orchestrator as orchestrator
+    import src.ui.assets as assets
+
+    assert app_config.APP_VERSION == "0.5.3"
+    assert app_config.DEFAULT_PRICE_CONTEXT_VERSION == app.DEFAULT_PRICE_CONTEXT_VERSION
+    assert app.DEFAULT_HF_DATASET_ID == "nvidia/Nemotron-Personas-USA"
+    assert assets.HF_DATASET_URL == "https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA"
+    assert hasattr(orchestrator, "build_persona_payloads")
+    assert hasattr(orchestrator, "_load_and_sample")
+
+
+def test_load_and_sample_hf_passes_explicit_token(
+    monkeypatch: pytest.MonkeyPatch,
+    all_mock_personas: list[dict],
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_load_huggingface_dataset(**kwargs):
+        captured_kwargs.update(kwargs)
+        return LoadedDataset("huggingface:test", "fixture", -1), iter(all_mock_personas[:1])
+
+    monkeypatch.setattr(app, "load_huggingface_dataset", fake_load_huggingface_dataset)
+
+    app._load_and_sample(  # noqa: SLF001 - app orchestration helper.
+        {
+            "source": "huggingface",
+            "dataset_id": app.DEFAULT_HF_DATASET_ID,
+            "split": app.DEFAULT_SPLIT,
+            "revision": app.DEFAULT_HF_REVISION,
+        },
+        {"sample_size": 1, "sampling_seed": 1, "filter": app.PersonaFilter()},
+        hf_token="hf_TEST_TOKEN",
+    )
+
+    assert captured_kwargs["dataset_id"] == "nvidia/Nemotron-Personas-USA"
+    assert captured_kwargs["revision"] == app.DEFAULT_HF_REVISION
+    assert captured_kwargs["token"] == "hf_TEST_TOKEN"
+
+
 def test_app_default_prompt_template_is_v0_3() -> None:
-    repo_root = Path(__file__).resolve().parent.parent
     assert app.PROMPT_TEMPLATE_PATH.name == "concept_eval_ko_v0_3.md"
-    assert PROMPT_TEMPLATE_PATH.relative_to(repo_root) == app.PROMPT_TEMPLATE_PATH
+    assert PROMPT_TEMPLATE_PATH == app.PROMPT_TEMPLATE_PATH
 
 
 def test_model_options_sort_claude_family_order() -> None:

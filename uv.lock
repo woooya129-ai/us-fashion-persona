@@ -2306,12 +2306,11 @@ wheels = [
 ]
 
 [[package]]
-name = "us-fashion-persona-screener"
-version = "0.1.0"
+name = "us-fashion-persona"
+version = "0.5.3"
 source = { virtual = "." }
 dependencies = [
     { name = "datasets" },
-    { name = "gitpython" },
     { name = "httpx" },
     { name = "pandas" },
     { name = "pyarrow" },
@@ -2334,14 +2333,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "datasets", specifier = ">=3,<4" },
-    { name = "gitpython", specifier = ">=3.1.50" },
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "pandas", specifier = ">=2,<3" },
     { name = "pyarrow", specifier = ">=18" },
     { name = "pydantic", specifier = ">=2,<3" },
     { name = "python-dotenv", specifier = ">=1,<2" },
     { name = "pyyaml", specifier = ">=6,<7" },
-    { name = "streamlit", specifier = ">=1.40,<2" },
+    { name = "streamlit", specifier = ">=1.57,<2" },
 ]
 
 [package.metadata.requires-dev]

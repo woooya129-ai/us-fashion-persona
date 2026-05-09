@@ -254,6 +254,32 @@ def test_run_evaluations_concurrency_exceeds_max_raises():
         _run(_inner())
 
 
+def test_run_evaluations_rejects_zero_concurrency():
+    async def _inner():
+        await run_evaluations(
+            payloads=_make_payloads(1),
+            evaluator_async=_fast_evaluator,
+            config=RunnerConfig(concurrency=0),
+            on_result=lambda _p, _r: None,
+        )
+
+    with pytest.raises(ValueError, match="concurrency must be positive"):
+        _run(_inner())
+
+
+def test_run_evaluations_rejects_zero_max_concurrency():
+    async def _inner():
+        await run_evaluations(
+            payloads=_make_payloads(1),
+            evaluator_async=_fast_evaluator,
+            config=RunnerConfig(concurrency=1, max_concurrency=0),
+            on_result=lambda _p, _r: None,
+        )
+
+    with pytest.raises(ValueError, match="max_concurrency must be positive"):
+        _run(_inner())
+
+
 # ---------------------------------------------------------------------------
 # on_result payload context
 #

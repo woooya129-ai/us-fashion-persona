@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC
 from pathlib import Path
@@ -19,11 +19,12 @@ _DATASET_ID_RE = re.compile(r"^(?!.*\.\.)[\w\-./]+$")
 DEFAULT_HF_DATASET_ID = "nvidia/Nemotron-Personas-USA"
 DEFAULT_HF_REVISION = "5b4cd35ab46490c1da1bd2b5a2324d6f871be180"
 DEFAULT_SPLIT = "train"
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 ALLOWED_LOCAL_EXTENSIONS: tuple[str, ...] = (".csv", ".parquet")
 MAX_LOCAL_FILE_BYTES: int = 500 * 1024 * 1024
 
-DEFAULT_ALLOWED_ROOTS: tuple[Path, ...] = (Path("data").resolve(),)
+DEFAULT_ALLOWED_ROOTS: tuple[Path, ...] = ((REPO_ROOT / "data").resolve(),)
 
 EXPECTED_COLUMNS: tuple[str, ...] = (
     "uuid",
@@ -87,6 +88,7 @@ class LoadedDataset:
     source: str
     dataset_revision: str
     total_rows: int
+    dataset_split: str | None = None
 
 
 def validate_columns(columns: list[str]) -> None:
@@ -133,7 +135,7 @@ def _is_relative_to(path: Path, base: Path) -> bool:
 
 
 def normalize_rows_to_personas(
-    rows: Iterator[dict[str, Any]],
+    rows: Iterable[dict[str, Any]],
 ) -> Iterator[Persona]:
     """Convert raw rows to Persona objects, skipping invalid rows."""
     for idx, row in enumerate(rows):
@@ -171,6 +173,7 @@ def load_huggingface_dataset(
     split: str = DEFAULT_SPLIT,
     streaming: bool = True,
     revision: str | None = None,
+    token: str | None = None,
 ) -> tuple[LoadedDataset, Iterator[dict[str, Any]]]:
     """Load the pinned USA persona dataset from Hugging Face."""
     _validate_dataset_id(dataset_id)
@@ -184,14 +187,15 @@ def load_huggingface_dataset(
             error_type="network",
         ) from exc
 
-    token = os.environ.get(HF_TOKEN_VAR) or None
+    hf_token = (token if token is not None else os.environ.get(HF_TOKEN_VAR)) or None
+    hf_token = hf_token.strip() if hf_token else None
 
     try:
         ds = load_dataset(
             dataset_id,
             split=split,
             streaming=streaming,
-            token=token,
+            token=hf_token,
             revision=effective_revision,
         )
     except Exception as exc:
@@ -257,6 +261,7 @@ def load_huggingface_dataset(
             source=f"huggingface:{dataset_id}",
             dataset_revision=f"pinned:{effective_revision}",
             total_rows=total,
+            dataset_split=split,
         ),
         iter(ds),
     )
@@ -326,6 +331,7 @@ def load_local_file(file_path: Path) -> tuple[LoadedDataset, Iterator[dict[str, 
             source=f"local:{file_path.name}",
             dataset_revision=f"loaded_at:{loaded_at}",
             total_rows=len(df),
+            dataset_split=None,
         ),
         rows,
     )

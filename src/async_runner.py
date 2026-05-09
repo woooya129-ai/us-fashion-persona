@@ -91,13 +91,17 @@ async def run_evaluations(
             cache_key=payload.get("cache_key"), ...).
 
     Raises:
-        ValueError: If config.concurrency > config.max_concurrency.
+        ValueError: If concurrency is non-positive or exceeds max_concurrency.
 
     Implementation note:
         on_result signature is (payload, result). Earlier draft passed only
         result, which lost the persona_id/cache_key context required by
         WS-JOB save_result.
     """
+    if config.max_concurrency <= 0:
+        raise ValueError(f"max_concurrency must be positive, got {config.max_concurrency}")
+    if config.concurrency <= 0:
+        raise ValueError(f"concurrency must be positive, got {config.concurrency}")
     if config.concurrency > config.max_concurrency:
         raise ValueError(
             f"concurrency={config.concurrency} exceeds max_concurrency={config.max_concurrency}"

@@ -246,6 +246,8 @@ def test_make_run_meta_uses_dataset_and_hash_metadata(
 def test_make_price_context_includes_us_official_income_and_asset_baselines() -> None:
     context = app.make_price_context(20_010)
 
+    assert context["reference_segment_id"] == "national_all"
+    assert context["reference_segment_label"] == "U.S. national baseline"
     assert context["price_burden_ratio"] == pytest.approx(0.1)
     assert context["price_burden_label"] == "low"
     assert context["apparel_services_annual_usd"] == 2_001
@@ -255,6 +257,18 @@ def test_make_price_context_includes_us_official_income_and_asset_baselines() ->
     assert context["fed_scf_mean_family_net_worth_usd"] == 1_063_700
     assert context["income_ratio"] == pytest.approx(200.10 / 83_730)
     assert context["net_worth_ratio"] == pytest.approx(200.10 / 192_900)
+    assert len(context["metric_rows"]) == 5
+
+
+def test_make_price_context_can_use_us_age_reference_segment() -> None:
+    context = app.make_price_context(20_010, reference_segment_id="age_25_34")
+
+    assert context["reference_segment_id"] == "age_25_34"
+    assert context["apparel_services_annual_usd"] == 2_220
+    assert context["bls_average_income_before_taxes_usd"] == 102_494
+    assert context["census_median_household_income_usd"] == 90_100
+    assert context["fed_scf_median_family_net_worth_usd"] == 39_000
+    assert context["price_burden_ratio"] == pytest.approx(20_010 / 222_000)
 
 
 def test_cached_sync_evaluator_uses_cache_without_llm_call(tmp_path: Path) -> None:

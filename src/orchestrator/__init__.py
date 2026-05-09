@@ -26,13 +26,6 @@ from src.data_loader import (
     normalize_rows_to_personas,
 )
 from src.db import get_connection
-from src.economic_context import (
-    BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS,
-    BLS_2024_AVERAGE_INCOME_BEFORE_TAXES_USD,
-    CENSUS_2024_MEDIAN_HOUSEHOLD_INCOME_USD,
-    FED_SCF_2022_MEAN_FAMILY_NET_WORTH_USD,
-    FED_SCF_2022_MEDIAN_FAMILY_NET_WORTH_USD,
-)
 from src.job_manager import RunMeta
 from src.llm_client import LLMClientError, LLMRequest, Provider, call_with_retry
 from src.llm_client import parse_evaluation_result as parse_llm_evaluation_result
@@ -107,21 +100,36 @@ def _persona_attributes(persona: Persona) -> dict[str, Any]:
 
 
 def _economic_context_text(concept: dict[str, Any], price_context: dict[str, Any]) -> str:
+    metric_rows = price_context.get("metric_rows") or []
+    if metric_rows:
+        metrics_text = "; ".join(
+            f"{row.get('label', row.get('metric'))} "
+            f"${int(row.get('value_usd') or 0):,.0f} "
+            f"({row.get('period', '')})"
+            for row in metric_rows
+        )
+    else:
+        metrics_text = (
+            "BLS Consumer Expenditure Survey 2024 annual Apparel and services "
+            f"${price_context['apparel_services_annual_usd']:,.0f}; "
+            "BLS Consumer Expenditure Survey 2024 average income before taxes "
+            f"${price_context['bls_average_income_before_taxes_usd']:,.0f}; "
+            "Census CPS ASEC 2024 median household income "
+            f"${price_context['census_median_household_income_usd']:,.0f}; "
+            "Federal Reserve SCF 2022 median family net worth "
+            f"${price_context['fed_scf_median_family_net_worth_usd']:,.0f}; "
+            "Federal Reserve SCF 2022 mean family net worth "
+            f"${price_context['fed_scf_mean_family_net_worth_usd']:,.0f}"
+        )
     return (
         f"Product price is ${concept['product_price_usd_cents'] / 100:,.2f} USD. "
-        f"It is {price_context['price_burden_ratio']:.2f}x the BLS 2024 annual Apparel "
+        f"Reference segment: "
+        f"{price_context.get('reference_segment_label', 'U.S. national baseline')}. "
+        f"It is {price_context['price_burden_ratio']:.2f}x the selected annual Apparel "
         f"and services reference value "
-        f"(${BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS / 100:,.0f}). "
+        f"(${price_context['apparel_services_annual_usd']:,.0f}). "
         f"Price burden label: {price_context['price_burden_label']}. "
-        "Official aggregate context: "
-        f"BLS Consumer Expenditure Survey 2024 average income before taxes "
-        f"${BLS_2024_AVERAGE_INCOME_BEFORE_TAXES_USD:,}; "
-        f"Census CPS ASEC 2024 median household income "
-        f"${CENSUS_2024_MEDIAN_HOUSEHOLD_INCOME_USD:,}; "
-        f"Federal Reserve SCF 2022 median family net worth "
-        f"${FED_SCF_2022_MEDIAN_FAMILY_NET_WORTH_USD:,}; "
-        f"Federal Reserve SCF 2022 mean family net worth "
-        f"${FED_SCF_2022_MEAN_FAMILY_NET_WORTH_USD:,}. "
+        f"Official aggregate context: {metrics_text}. "
         "These are aggregate U.S. official statistics and do not imply an individual "
         "persona's actual income, assets, purchase power, or willingness to pay."
     )

@@ -75,3 +75,36 @@ def test_economic_baseline_hash_payload_includes_income_and_assets():
     assert payload["census_2024_median_household_income_usd"] == 83_730
     assert payload["fed_scf_2022_median_family_net_worth_usd"] == 192_900
     assert payload["fed_scf_2022_mean_family_net_worth_usd"] == 1_063_700
+
+
+def test_us_context_segment_options_include_age_segments():
+    options = econ.us_context_segment_options()
+
+    assert options["national_all"] == "U.S. national baseline"
+    assert options["age_25_34"] == "Age 25 to 34"
+    assert options["age_75_plus"] == "Age 75 or over"
+
+
+def test_build_price_context_uses_selected_age_segment_snapshot():
+    context = econ.build_price_context(20_010, reference_segment_id="age_35_44")
+
+    assert context["reference_segment_id"] == "age_35_44"
+    assert context["reference_segment_label"] == "Age 35 to 44"
+    assert context["apparel_services_annual_usd"] == 2_649
+    assert context["bls_average_income_before_taxes_usd"] == 128_285
+    assert context["census_median_household_income_usd"] == 106_100
+    assert context["fed_scf_median_family_net_worth_usd"] == 135_600
+    assert context["fed_scf_mean_family_net_worth_usd"] == 549_600
+    assert context["price_burden_ratio"] == pytest.approx(20_010 / 264_900)
+    assert context["income_ratio"] == pytest.approx(200.10 / 106_100)
+    assert len(context["metric_rows"]) == 5
+
+
+def test_context_hash_payload_includes_selected_segment_digest():
+    context = econ.build_price_context(20_010, reference_segment_id="age_45_54")
+    payload = econ.economic_baseline_hash_payload(context)
+
+    assert payload["reference_segment_id"] == "age_45_54"
+    assert payload["denominator_usd_cents"] == 254_700
+    assert payload["metrics"]["median_household_income_usd"] == 116_800
+    assert payload["context_digest"] == context["context_digest"]

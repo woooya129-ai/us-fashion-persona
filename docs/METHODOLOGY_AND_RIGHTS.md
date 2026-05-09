@@ -13,8 +13,10 @@ local workflow:
    message.
 2. The app builds a synthetic persona panel from NVIDIA
    Nemotron-Personas-USA with deterministic sampling and filters.
-3. Official U.S. aggregate-statistics context is added as reference context, not
-   as individual persona income, assets, or purchase power.
+3. Official U.S. aggregate-statistics context is loaded from the committed
+   `data/public/us_household_context.csv` snapshot. The selected national or
+   age-reference segment is added as reference context, not as individual
+   persona income, assets, or purchase power.
 4. The selected LLM provider evaluates the concept against the prompt schema.
 5. The result payload is parsed, validated, cached, aggregated, and exported as
    Markdown/CSV reports.
@@ -29,11 +31,12 @@ The USA version uses:
 
 - Persona dataset: NVIDIA Nemotron-Personas-USA
 - Consumer spending context: BLS Consumer Expenditure Survey 2024, annual
-  Apparel and services
+  Apparel and services by national baseline or age of reference person
 - Income context: BLS 2024 average income before taxes and U.S. Census CPS ASEC
-  2024 median household income
+  2024 HINC-02 median household income by national baseline or age of
+  householder
 - Asset context: Federal Reserve Survey of Consumer Finances 2022 median and
-  mean family net worth
+  mean family net worth by national baseline or reference-person age group
 
 These are aggregate reference statistics. They do not mean that any synthetic
 persona has that income, those assets, or that purchasing power.

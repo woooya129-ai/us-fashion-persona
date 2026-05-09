@@ -323,42 +323,69 @@ def _format_usd(value: object) -> str:
         return str(value)
 
 
+def _denominator_usd(price_context: dict[str, Any]) -> object:
+    denominator_cents = price_context.get("denominator_usd_cents")
+    if denominator_cents is not None:
+        try:
+            return float(denominator_cents) / 100
+        except (TypeError, ValueError):
+            return denominator_cents
+    return price_context.get("apparel_services_annual_usd")
+
+
 def _append_price_context_section(lines: list[str], price_context: dict[str, Any] | None) -> None:
     if not price_context:
         return
 
-    rows = [
-        (
-            "BLS 2024 annual Apparel and services",
-            price_context.get("apparel_services_annual_usd"),
-            "BLS Consumer Expenditure Survey 2024",
-        ),
-        (
-            "BLS 2024 average income before taxes",
-            price_context.get("bls_average_income_before_taxes_usd"),
-            "BLS Consumer Expenditure Survey 2024",
-        ),
-        (
-            "Census 2024 median household income",
-            price_context.get("census_median_household_income_usd"),
-            "U.S. Census CPS ASEC 2024",
-        ),
-        (
-            "Federal Reserve SCF 2022 median family net worth",
-            price_context.get("fed_scf_median_family_net_worth_usd"),
-            "Federal Reserve SCF 2022",
-        ),
-        (
-            "Federal Reserve SCF 2022 mean family net worth",
-            price_context.get("fed_scf_mean_family_net_worth_usd"),
-            "Federal Reserve SCF 2022",
-        ),
-    ]
+    metric_rows = price_context.get("metric_rows") or []
+    if metric_rows:
+        rows = [
+            (
+                row.get("label", row.get("metric", "")),
+                row.get("value_usd"),
+                row.get("source_name", ""),
+            )
+            for row in metric_rows
+        ]
+    else:
+        rows = [
+            (
+                "BLS 2024 annual Apparel and services",
+                price_context.get("apparel_services_annual_usd"),
+                "BLS Consumer Expenditure Survey 2024",
+            ),
+            (
+                "BLS 2024 average income before taxes",
+                price_context.get("bls_average_income_before_taxes_usd"),
+                "BLS Consumer Expenditure Survey 2024",
+            ),
+            (
+                "Census 2024 median household income",
+                price_context.get("census_median_household_income_usd"),
+                "U.S. Census CPS ASEC 2024",
+            ),
+            (
+                "Federal Reserve SCF 2022 median family net worth",
+                price_context.get("fed_scf_median_family_net_worth_usd"),
+                "Federal Reserve SCF 2022",
+            ),
+            (
+                "Federal Reserve SCF 2022 mean family net worth",
+                price_context.get("fed_scf_mean_family_net_worth_usd"),
+                "Federal Reserve SCF 2022",
+            ),
+        ]
 
     lines.append("## 미국 공식 경제 맥락")
     lines.append("")
+    reference_segment = str(price_context.get("reference_segment_label", "U.S. national baseline"))
+    lines.append(f"- 기준 계층: {escape_markdown_table_cell(reference_segment)}")
+    lines.append(f"- 참고 기간: {price_context.get('period', '')}")
     lines.append(
-        f"- 제품 가격 / BLS 연간 의류·서비스 기준값: "
+        f"- 가격 기준값: {_format_usd(_denominator_usd(price_context))} (연간 의류/서비스 지출)"
+    )
+    lines.append(
+        "- 제품 가격 / 기준값: "
         f"{price_context.get('price_burden_ratio', 0):.2f}배 "
         f"({price_context.get('price_burden_label', 'unknown')})"
     )
@@ -546,6 +573,13 @@ def render_csv(report: AggregateReport, price_context: dict[str, Any] | None = N
     if price_context:
         _row(
             "미국공식경제맥락",
+            "기준 계층",
+            price_context.get("reference_segment_label", "U.S. national baseline"),
+        )
+        _row("미국공식경제맥락", "참고 기간", price_context.get("period", ""))
+        _row("미국공식경제맥락", "가격 기준값", _format_usd(_denominator_usd(price_context)))
+        _row(
+            "미국공식경제맥락",
             "가격 기준 배수",
             price_context.get("price_burden_ratio", ""),
         )
@@ -554,35 +588,52 @@ def render_csv(report: AggregateReport, price_context: dict[str, Any] | None = N
             "가격 부담 라벨",
             price_context.get("price_burden_label", ""),
         )
-        metric_rows = [
-            (
-                "BLS annual Apparel and services",
-                price_context.get("apparel_services_annual_usd"),
-                "BLS Consumer Expenditure Survey 2024",
-            ),
-            (
-                "BLS average income before taxes",
-                price_context.get("bls_average_income_before_taxes_usd"),
-                "BLS Consumer Expenditure Survey 2024",
-            ),
-            (
-                "Median household income",
-                price_context.get("census_median_household_income_usd"),
-                "U.S. Census CPS ASEC 2024",
-            ),
-            (
-                "Median family net worth",
-                price_context.get("fed_scf_median_family_net_worth_usd"),
-                "Federal Reserve SCF 2022",
-            ),
-            (
-                "Mean family net worth",
-                price_context.get("fed_scf_mean_family_net_worth_usd"),
-                "Federal Reserve SCF 2022",
-            ),
-        ]
-        for label, value, source in metric_rows:
-            _row("미국공식경제맥락_항목", label, f"{_format_usd(value)} | {source}")
+        source_metric_rows = price_context.get("metric_rows") or []
+        if source_metric_rows:
+            metric_rows = [
+                (
+                    row.get("label", row.get("metric", "")),
+                    row.get("value_usd"),
+                    row.get("period", ""),
+                    row.get("source_name", ""),
+                )
+                for row in source_metric_rows
+            ]
+        else:
+            metric_rows = [
+                (
+                    "BLS annual Apparel and services",
+                    price_context.get("apparel_services_annual_usd"),
+                    price_context.get("period", ""),
+                    "BLS Consumer Expenditure Survey 2024",
+                ),
+                (
+                    "BLS average income before taxes",
+                    price_context.get("bls_average_income_before_taxes_usd"),
+                    price_context.get("period", ""),
+                    "BLS Consumer Expenditure Survey 2024",
+                ),
+                (
+                    "Median household income",
+                    price_context.get("census_median_household_income_usd"),
+                    price_context.get("period", ""),
+                    "U.S. Census CPS ASEC 2024",
+                ),
+                (
+                    "Median family net worth",
+                    price_context.get("fed_scf_median_family_net_worth_usd"),
+                    price_context.get("period", ""),
+                    "Federal Reserve SCF 2022",
+                ),
+                (
+                    "Mean family net worth",
+                    price_context.get("fed_scf_mean_family_net_worth_usd"),
+                    price_context.get("period", ""),
+                    "Federal Reserve SCF 2022",
+                ),
+            ]
+        for label, value, period, source in metric_rows:
+            _row("미국공식경제맥락_항목", label, f"{_format_usd(value)} | {period} | {source}")
 
     # Quality
     _row("결과품질", "성공", q.success)

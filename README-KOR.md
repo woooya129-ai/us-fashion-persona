@@ -62,11 +62,14 @@ Hugging Face 공식 데이터셋 기준으로 pinned USA 데이터셋은 100만 
 sampling을 수행한다.
 
 소득, 자산, 소비 통계는 개별 페르소나의 실제 경제 상태를 추정하지 않는다.
-리포트와 프롬프트의 가격 맥락은 다음 미국 공식 집계값을 고정 기준으로 사용한다.
+리포트와 프롬프트의 가격 맥락은 커밋된 공식 통계 스냅샷을 사용한다.
+UI에서 전국 기준 또는 연령 기준 세그먼트를 선택할 수 있다.
 
-- BLS Consumer Expenditure Survey 2024: annual Apparel and services spending
-- U.S. Census CPS ASEC 2024 income release: median household income
-- Federal Reserve Survey of Consumer Finances 2022: median and mean family net worth
+- `data/public/us_household_context.csv`: 미국 공식 통계 파생 스냅샷
+- BLS Consumer Expenditure Survey 2024: 연간 Apparel and services 지출
+- BLS Consumer Expenditure Survey 2024: 세전 평균 소득
+- U.S. Census CPS ASEC 2024 HINC-02: 가구주 연령별 중위 가구소득
+- Federal Reserve Survey of Consumer Finances 2022: 연령별 중위/평균 가족 순자산
 
 ## 로컬 실행
 

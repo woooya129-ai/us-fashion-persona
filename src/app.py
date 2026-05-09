@@ -62,17 +62,10 @@ from src.data_loader import (
 from src.db import get_connection, init_db
 from src.economic_context import (
     BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS,
-    BLS_2024_AVERAGE_INCOME_BEFORE_TAXES_USD,
-    CENSUS_2024_MEDIAN_HOUSEHOLD_INCOME_USD,
-    FED_SCF_2022_MEAN_FAMILY_NET_WORTH_USD,
-    FED_SCF_2022_MEDIAN_FAMILY_NET_WORTH_USD,
-    OFFICIAL_US_CONTEXT_SOURCES,
-    bls_income_ratio,
+    DEFAULT_REFERENCE_SEGMENT_ID,
+    build_price_context,
     economic_baseline_hash_payload,
-    income_ratio,
-    net_worth_ratio,
-    price_burden_label,
-    price_burden_ratio,
+    us_context_segment_options,
 )
 from src.job_manager import (
     RunMeta,
@@ -176,7 +169,7 @@ PRODUCT_CARD_FIELD_LABELS_KR: dict[str, str] = {
     "description": "브랜드 메시지/제품 설명",
 }
 
-DEFAULT_PRICE_CONTEXT_VERSION = "us_official_bls_2024_census_2024_scf_2022_v1"
+DEFAULT_PRICE_CONTEXT_VERSION = "us_official_bls_2024_census_hinc02_2024_scf_2022_segments_v1"
 DEFAULT_UI_LANGUAGE = "EN"
 DEFAULT_TEMPERATURE = 0.3
 MAX_SAMPLE_SIZE = 1000
@@ -4828,22 +4821,36 @@ def render_simple_setup(pricing_config: dict[str, ModelPricing], lang: str) -> d
     }
 
 
-def make_price_context(product_price_usd_cents: int) -> dict[str, Any]:
-    ratio = price_burden_ratio(product_price_usd_cents)
-    label = price_burden_label(ratio)
-    return {
-        "price_burden_ratio": ratio,
-        "price_burden_label": label,
-        "income_ratio": income_ratio(product_price_usd_cents),
-        "bls_income_ratio": bls_income_ratio(product_price_usd_cents),
-        "net_worth_ratio": net_worth_ratio(product_price_usd_cents),
-        "apparel_services_annual_usd": BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS // 100,
-        "bls_average_income_before_taxes_usd": BLS_2024_AVERAGE_INCOME_BEFORE_TAXES_USD,
-        "census_median_household_income_usd": CENSUS_2024_MEDIAN_HOUSEHOLD_INCOME_USD,
-        "fed_scf_median_family_net_worth_usd": FED_SCF_2022_MEDIAN_FAMILY_NET_WORTH_USD,
-        "fed_scf_mean_family_net_worth_usd": FED_SCF_2022_MEAN_FAMILY_NET_WORTH_USD,
-        "sources": OFFICIAL_US_CONTEXT_SOURCES,
-    }
+def make_price_context(
+    product_price_usd_cents: int,
+    reference_segment_id: str = DEFAULT_REFERENCE_SEGMENT_ID,
+) -> dict[str, Any]:
+    return build_price_context(
+        product_price_usd_cents,
+        reference_segment_id=reference_segment_id,
+    )
+
+
+def render_reference_segment_control(lang: str) -> str:
+    options = us_context_segment_options()
+    segment_ids = list(options)
+    segment_labels = [options[segment_id] for segment_id in segment_ids]
+    label = "US economic reference segment" if lang == "EN" else "미국 경제 기준 세그먼트"
+    help_text = (
+        "Select the aggregate official-statistics segment used for apparel spend, "
+        "income, and net-worth context. This does not infer a persona's real finances."
+        if lang == "EN"
+        else "의류 지출, 소득, 순자산 기준으로 쓸 공식 통계 세그먼트야. "
+        "개별 페르소나의 실제 경제력을 추정하지 않는다."
+    )
+    selected_label = st.selectbox(
+        label,
+        segment_labels,
+        index=0,
+        key="kfps_us_reference_segment",
+        help=help_text,
+    )
+    return segment_ids[segment_labels.index(selected_label)]
 
 
 def _usd_whole(value: int | float) -> str:
@@ -4855,7 +4862,9 @@ def render_price_context(price_context: dict[str, Any], lang: str) -> None:
     apparel = _usd_whole(price_context["apparel_services_annual_usd"])
     census_income = _usd_whole(price_context["census_median_household_income_usd"])
     fed_net_worth = _usd_whole(price_context["fed_scf_median_family_net_worth_usd"])
+    segment_label = price_context.get("reference_segment_label", "U.S. national baseline")
     if lang == "KR":
+        st.write(f"기준 세그먼트: **{segment_label}**")
         st.write(
             "상품 가격은 BLS 2024 연간 의류/서비스 지출 기준의 "
             f"**{price_context['price_burden_ratio']:.2f}배**야. "
@@ -4868,6 +4877,7 @@ def render_price_context(price_context: dict[str, Any], lang: str) -> None:
             f"**{price_context['net_worth_ratio']:.2%}**야."
         )
     else:
+        st.write(f"Reference segment: **{segment_label}**")
         st.write(
             "Product price is "
             f"**{price_context['price_burden_ratio']:.2f}x** the BLS 2024 annual "
@@ -4880,6 +4890,8 @@ def render_price_context(price_context: dict[str, Any], lang: str) -> None:
             f"**{price_context['net_worth_ratio']:.2%}** of Federal Reserve SCF 2022 "
             f"median family net worth **{fed_net_worth}**."
         )
+    for warning in price_context.get("warnings", ()):
+        st.warning(str(warning))
     st.caption(ui_text(lang, "price_context_caption"))
 
 
@@ -4985,18 +4997,30 @@ def build_canonical_product_card_text(fields: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def make_hashes(concept: dict[str, Any]) -> dict[str, str]:
+def make_hashes(
+    concept: dict[str, Any],
+    price_context: dict[str, Any] | None = None,
+) -> dict[str, str]:
     concept_hash = compute_concept_hash(
         concept["concept_text"],
         concept["category"],
         concept["product_price_usd_cents"],
     )
+    price_context = price_context or make_price_context(concept["product_price_usd_cents"])
     price_context_hash = compute_price_context_hash(
-        source="bls_census_federal_reserve",
-        period="bls_2024+census_2024+scf_2022",
-        denominator_usd_cents=BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS,
+        source=str(price_context.get("source", "us_official")),
+        period=(
+            f"{price_context.get('period', 'bls_2024+census_2024+scf_2022')}:"
+            f"{price_context.get('reference_segment_id', DEFAULT_REFERENCE_SEGMENT_ID)}"
+        ),
+        denominator_usd_cents=int(
+            price_context.get(
+                "denominator_usd_cents",
+                BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS,
+            )
+        ),
         price_context_version=DEFAULT_PRICE_CONTEXT_VERSION,
-        extra_context=economic_baseline_hash_payload(),
+        extra_context=economic_baseline_hash_payload(price_context),
     )
     return {"concept_hash": concept_hash, "price_context_hash": price_context_hash}
 
@@ -5262,22 +5286,35 @@ def _persona_attributes(persona: Persona) -> dict[str, Any]:
 
 
 def _economic_context_text(concept: dict[str, Any], price_context: dict[str, Any]) -> str:
+    metric_rows = price_context.get("metric_rows") or []
+    if metric_rows:
+        metrics_text = "; ".join(
+            f"{row.get('label', row.get('metric'))} "
+            f"${int(row.get('value_usd') or 0):,.0f} "
+            f"({row.get('period', '')})"
+            for row in metric_rows
+        )
+    else:
+        metrics_text = (
+            "BLS Consumer Expenditure Survey 2024 annual Apparel and services baseline "
+            f"${price_context['apparel_services_annual_usd']:,.0f}; "
+            "BLS 2024 average income before taxes "
+            f"${price_context['bls_average_income_before_taxes_usd']:,.0f}; "
+            "Census CPS ASEC 2024 median household income "
+            f"${price_context['census_median_household_income_usd']:,.0f}; "
+            "Federal Reserve SCF 2022 median family net worth "
+            f"${price_context['fed_scf_median_family_net_worth_usd']:,.0f}"
+        )
     return (
         f"Product price is ${concept['product_price_usd_cents'] / 100:,.2f} USD. "
-        "Official U.S. economic reference points: "
-        "BLS Consumer Expenditure Survey 2024 annual Apparel and services baseline "
-        f"${price_context['apparel_services_annual_usd']:,.0f}; "
-        "BLS 2024 average income before taxes "
-        f"${price_context['bls_average_income_before_taxes_usd']:,.0f}; "
-        "Census CPS ASEC 2024 median household income "
-        f"${price_context['census_median_household_income_usd']:,.0f}; "
-        "Federal Reserve SCF 2022 median family net worth "
-        f"${price_context['fed_scf_median_family_net_worth_usd']:,.0f}. "
+        f"Official U.S. economic reference segment: "
+        f"{price_context.get('reference_segment_label', 'U.S. national baseline')}. "
+        f"Official U.S. economic reference points: {metrics_text}. "
         f"Price is {price_context['price_burden_ratio']:.2f}x the apparel baseline, "
         f"{price_context['income_ratio']:.2%} of Census median household income, "
         f"and {price_context['net_worth_ratio']:.2%} of Fed SCF median family net worth. "
         f"Price burden label: {price_context['price_burden_label']}. "
-        "These are national official baselines only, not persona-specific income, "
+        "These are aggregate official baselines only, not persona-specific income, "
         "wealth, purchasing power, or purchase intent."
     )
 
@@ -5874,6 +5911,7 @@ def main() -> None:
     with st.sidebar:
         render_sidebar_title(lang)
         setup = render_simple_setup(pricing_config, lang)
+        reference_segment_id = render_reference_segment_control(lang)
         dataset = setup.get("dataset", {})
         sample = setup.get("sample", {})
         model = setup.get("model", {})
@@ -5888,9 +5926,12 @@ def main() -> None:
     )
     concept = render_concept_inputs(lang)
     enter_button_placeholder = concept.pop("_enter_button_placeholder")
-    price_context = make_price_context(concept["product_price_usd_cents"])
+    price_context = make_price_context(
+        concept["product_price_usd_cents"],
+        reference_segment_id=reference_segment_id,
+    )
     cost_state = make_cost_state(concept, sample, model)
-    hashes = make_hashes(concept)
+    hashes = make_hashes(concept, price_context)
 
     injection_hits = detect_injection_keywords(concept["concept_text"])
     if injection_hits:

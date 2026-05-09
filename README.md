@@ -64,12 +64,16 @@ streaming, so it does not load the full dataset into RAM at once. Filtering and
 reservoir sampling run locally.
 
 The app does not infer a persona's actual income, wealth, or purchasing power.
-Report and prompt context use fixed aggregate statistics from official U.S.
-sources:
+Report and prompt context use a committed official-statistics snapshot at
+`data/public/us_household_context.csv`. The UI can use the national baseline or
+an age-reference segment for aggregate context:
 
 - BLS Consumer Expenditure Survey 2024: annual Apparel and services spending
-- U.S. Census CPS ASEC 2024 income release: median household income
-- Federal Reserve Survey of Consumer Finances 2022: median and mean family net worth
+- BLS Consumer Expenditure Survey 2024: average income before taxes
+- U.S. Census CPS ASEC 2024 HINC-02: median household income by age of
+  householder
+- Federal Reserve Survey of Consumer Finances 2022: median and mean family net
+  worth by reference-person age group
 
 These values are directional aggregate context only. Use real surveys, sales
 data, and expert review for final decisions.

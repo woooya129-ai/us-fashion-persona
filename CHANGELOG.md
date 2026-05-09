@@ -2,6 +2,11 @@
 
 ## 0.5.3 - 2026-05-10 (Attribution and rights positioning)
 
+- Added `data/public/us_household_context.csv` and segment-based U.S. official
+  economic context so the USA project can run national or age-reference
+  baselines like the Korea twin.
+- Updated price-context hashing, prompts, reports, and UI selection to include
+  the selected U.S. official-statistics segment.
 - Added `CITATION.cff` to make project attribution explicit.
 - Added `docs/METHODOLOGY_AND_RIGHTS.md` to document the US pre-screening
   workflow, attribution expectations, commercial adoption boundary, and IP

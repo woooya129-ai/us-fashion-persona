@@ -51,6 +51,9 @@ def sample_price_context() -> dict:
     return {
         "price_burden_ratio": 0.09,
         "price_burden_label": "low",
+        "reference_segment_label": "U.S. national baseline",
+        "period": "2024, 2022",
+        "denominator_usd_cents": 200100,
         "apparel_services_annual_usd": 2001,
         "bls_average_income_before_taxes_usd": 104207,
         "census_median_household_income_usd": 83730,
@@ -213,6 +216,8 @@ class TestRenderMarkdown:
     def test_us_price_context_section_present(self, full_report, sample_price_context):
         md = render_markdown(full_report, sample_price_context)
         assert "## 미국 공식 경제 맥락" in md
+        assert "U.S. national baseline" in md
+        assert "$2,001" in md
         assert "BLS 2024 annual Apparel and services" in md
         assert "Census 2024 median household income" in md
         assert "개별 페르소나의 실제 소득" in md
@@ -268,6 +273,8 @@ class TestRenderCsv:
     def test_csv_includes_us_price_context(self, full_report, sample_price_context):
         csv_text = render_csv(full_report, sample_price_context)
         assert "미국공식경제맥락" in csv_text
+        assert "U.S. national baseline" in csv_text
+        assert "2024, 2022" in csv_text
         assert "Median household income" in csv_text
         assert "$83,730" in csv_text
 

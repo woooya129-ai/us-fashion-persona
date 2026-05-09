@@ -34,13 +34,15 @@ exact file path, transformation method, and change statement before release.
   spending, household income, family net worth, and aggregate economic context
 - Not used for: direct inference of individual persona income, assets, or real
   purchasing power
-- Data bundled in this repository: No separate raw data files. The app uses
-  stable aggregate context constants in `src/economic_context.py`.
+- Data bundled in this repository: A compact derived snapshot is committed at
+  `data/public/us_household_context.csv` for reproducible national and
+  age-reference aggregate context. It is not persona-level data.
 - Source pages used for the committed context:
-  - BLS Consumer Expenditures 2024 news release and annual tables:
-    https://www.bls.gov/news.release/cesan.nr0.htm
-  - U.S. Census Bureau, Income in the United States: 2024:
-    https://www.census.gov/library/publications/2025/demo/p60-286.html
+  - BLS Consumer Expenditure Surveys 2024 tables and FRED-hosted BLS series:
+    https://www.bls.gov/cex/tables.htm
+    https://fred.stlouisfed.org/release?rid=479
+  - U.S. Census Bureau CPS ASEC 2024 HINC-02:
+    https://www.census.gov/data/tables/time-series/demo/income-poverty/cps-hinc/hinc-02.html
   - Federal Reserve, Changes in U.S. Family Finances from 2019 to 2022:
     https://www.federalreserve.gov/publications/october-2023-changes-in-us-family-finances-from-2019-to-2022.htm
 

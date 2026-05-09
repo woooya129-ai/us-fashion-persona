@@ -67,6 +67,7 @@ def compute_price_context_hash(
     period: str,
     denominator_usd_cents: int,
     price_context_version: str,
+    extra_context: dict[str, Any] | None = None,
 ) -> str:
     """lock-in §5.3.1 price_context_hash."""
     payload = {
@@ -75,6 +76,8 @@ def compute_price_context_hash(
         "denominator_usd_cents": int(denominator_usd_cents),
         "price_context_version": price_context_version,
     }
+    if extra_context is not None:
+        payload["extra_context"] = extra_context
     return _sha256_hex(_serialize_canonical(payload))
 
 

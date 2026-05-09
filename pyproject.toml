@@ -16,6 +16,7 @@ dependencies = [
   "pandas>=2,<3",
   "datasets>=3,<4",
   "pyarrow>=18",
+  "gitpython>=3.1.50",
 ]
 
 [dependency-groups]

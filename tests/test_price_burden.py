@@ -2,6 +2,7 @@ import math
 
 import pytest
 
+from src import economic_context as econ
 from src.economic_context import price_burden_label, price_burden_ratio
 
 pytestmark = pytest.mark.no_network
@@ -56,3 +57,21 @@ def test_price_burden_label_nan_raises():
 def test_price_burden_label_inf_raises():
     with pytest.raises(ValueError):
         price_burden_label(math.inf)
+
+
+def test_official_us_income_and_asset_ratios():
+    price = 20_010
+
+    assert econ.income_ratio(price) == pytest.approx(200.10 / 83_730)
+    assert econ.bls_income_ratio(price) == pytest.approx(200.10 / 104_207)
+    assert econ.net_worth_ratio(price) == pytest.approx(200.10 / 192_900)
+
+
+def test_economic_baseline_hash_payload_includes_income_and_assets():
+    payload = econ.economic_baseline_hash_payload()
+
+    assert payload["bls_2024_apparel_services_usd"] == 2_001
+    assert payload["bls_2024_average_income_before_taxes_usd"] == 104_207
+    assert payload["census_2024_median_household_income_usd"] == 83_730
+    assert payload["fed_scf_2022_median_family_net_worth_usd"] == 192_900
+    assert payload["fed_scf_2022_mean_family_net_worth_usd"] == 1_063_700

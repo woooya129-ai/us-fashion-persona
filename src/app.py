@@ -62,6 +62,15 @@ from src.data_loader import (
 from src.db import get_connection, init_db
 from src.economic_context import (
     BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS,
+    BLS_2024_AVERAGE_INCOME_BEFORE_TAXES_USD,
+    CENSUS_2024_MEDIAN_HOUSEHOLD_INCOME_USD,
+    FED_SCF_2022_MEAN_FAMILY_NET_WORTH_USD,
+    FED_SCF_2022_MEDIAN_FAMILY_NET_WORTH_USD,
+    OFFICIAL_US_CONTEXT_SOURCES,
+    bls_income_ratio,
+    economic_baseline_hash_payload,
+    income_ratio,
+    net_worth_ratio,
     price_burden_label,
     price_burden_ratio,
 )
@@ -161,7 +170,7 @@ PRODUCT_CARD_FIELD_LABELS_KR: dict[str, str] = {
     "description": "브랜드 메시지/제품 설명",
 }
 
-DEFAULT_PRICE_CONTEXT_VERSION = "bls_2024_apparel_services_annual_v1"
+DEFAULT_PRICE_CONTEXT_VERSION = "us_official_bls_2024_census_2024_scf_2022_v1"
 DEFAULT_UI_LANGUAGE = "EN"
 DEFAULT_TEMPERATURE = 0.3
 MAX_SAMPLE_SIZE = 1000
@@ -341,7 +350,7 @@ UI_COPY: dict[str, dict[str, str]] = {
         ),
         "section_econ": "Economic Context",
         "section_econ_caption": (
-            "가격은 BLS 2024 Consumer Expenditure 의류비 기준으로만 맥락화한다."
+            "BLS, Census, Federal Reserve 공식 기준으로 가격/소득/자산 맥락을 함께 본다."
         ),
         "section_run": "Run",
         "section_run_caption": "비용 확인 후 worker thread를 시작하고 진행률을 1초마다 갱신한다.",
@@ -433,8 +442,11 @@ UI_COPY: dict[str, dict[str, str]] = {
         "hf_status_help": (
             "Hugging Face 데이터셋 접근용 TOKEN 상태야. 공개 데이터는 보통 없어도 돼."
         ),
-        "price_context_header": "가격 맥락",
-        "price_context_caption": "가격 맥락 참고 지표이며 실제 구매력을 뜻하지 않는다.",
+        "price_context_header": "미국 공식 경제 맥락",
+        "price_context_caption": (
+            "BLS, Census, Federal Reserve 기준 참고값이며 "
+            "개인별 실제 구매력이나 지불 의향이 아니다."
+        ),
         "cost_header": "비용 / 시간 사전 추정",
         "need_concept": "컨셉을 먼저 입력해.",
         "new_calls": "신규 호출 예상",
@@ -569,7 +581,7 @@ UI_COPY: dict[str, dict[str, str]] = {
         ),
         "section_econ": "Economic Context",
         "section_econ_caption": (
-            "Price is contextualized only against BLS 2024 Consumer Expenditure clothing spend."
+            "Price is contextualized with BLS, Census, and Federal Reserve official baselines."
         ),
         "section_run": "Run",
         "section_run_caption": (
@@ -668,8 +680,11 @@ UI_COPY: dict[str, dict[str, str]] = {
         "hf_status_help": (
             "HF TOKEN status for Hugging Face data access. Public data usually works without it."
         ),
-        "price_context_header": "Price context",
-        "price_context_caption": "This is context only, not real purchasing power.",
+        "price_context_header": "U.S. official economic context",
+        "price_context_caption": (
+            "BLS, Census, and Federal Reserve baselines only. This is not real purchasing "
+            "power or purchase intent."
+        ),
         "cost_header": "Cost / time estimate",
         "need_concept": "Enter a concept first.",
         "new_calls": "New calls",
@@ -4148,7 +4163,7 @@ def _estimate_sidebar_cost(sample_size: int, pricing: ModelPricing) -> tuple[flo
         system_prompt_tokens=400,
         persona_tokens=350,
         concept_tokens=0,
-        economic_context_tokens=80,
+        economic_context_tokens=140,
         schema_instruction_tokens=120,
         expected_output_tokens_per_persona=325,
         new_call_count=sample_size,
@@ -4806,17 +4821,55 @@ def render_simple_setup(pricing_config: dict[str, ModelPricing], lang: str) -> d
 def make_price_context(product_price_usd_cents: int) -> dict[str, Any]:
     ratio = price_burden_ratio(product_price_usd_cents)
     label = price_burden_label(ratio)
-    return {"price_burden_ratio": ratio, "price_burden_label": label}
+    return {
+        "price_burden_ratio": ratio,
+        "price_burden_label": label,
+        "income_ratio": income_ratio(product_price_usd_cents),
+        "bls_income_ratio": bls_income_ratio(product_price_usd_cents),
+        "net_worth_ratio": net_worth_ratio(product_price_usd_cents),
+        "apparel_services_annual_usd": BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS // 100,
+        "bls_average_income_before_taxes_usd": BLS_2024_AVERAGE_INCOME_BEFORE_TAXES_USD,
+        "census_median_household_income_usd": CENSUS_2024_MEDIAN_HOUSEHOLD_INCOME_USD,
+        "fed_scf_median_family_net_worth_usd": FED_SCF_2022_MEDIAN_FAMILY_NET_WORTH_USD,
+        "fed_scf_mean_family_net_worth_usd": FED_SCF_2022_MEAN_FAMILY_NET_WORTH_USD,
+        "sources": OFFICIAL_US_CONTEXT_SOURCES,
+    }
+
+
+def _usd_whole(value: int | float) -> str:
+    return f"${value:,.0f}"
 
 
 def render_price_context(price_context: dict[str, Any], lang: str) -> None:
     st.subheader(ui_text(lang, "price_context_header"))
-    denom = f"${BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS / 100:,.2f} USD"
-    st.write(
-        "Product price is "
-        f"**{price_context['price_burden_ratio']:.2f}x** the annual apparel baseline. "
-        f"Baseline: {denom}, label: **{price_context['price_burden_label']}**"
-    )
+    apparel = _usd_whole(price_context["apparel_services_annual_usd"])
+    census_income = _usd_whole(price_context["census_median_household_income_usd"])
+    fed_net_worth = _usd_whole(price_context["fed_scf_median_family_net_worth_usd"])
+    if lang == "KR":
+        st.write(
+            "상품 가격은 BLS 2024 연간 의류/서비스 지출 기준의 "
+            f"**{price_context['price_burden_ratio']:.2f}배**야. "
+            f"기준값: **{apparel}**, 라벨: **{price_context['price_burden_label']}**"
+        )
+        st.write(
+            f"Census 2024 중위 가구소득 **{census_income}** 대비 "
+            f"**{price_context['income_ratio']:.2%}**, Federal Reserve SCF 2022 "
+            f"중위 가족 순자산 **{fed_net_worth}** 대비 "
+            f"**{price_context['net_worth_ratio']:.2%}**야."
+        )
+    else:
+        st.write(
+            "Product price is "
+            f"**{price_context['price_burden_ratio']:.2f}x** the BLS 2024 annual "
+            f"Apparel and services baseline. Baseline: **{apparel}**, "
+            f"label: **{price_context['price_burden_label']}**"
+        )
+        st.write(
+            f"It is **{price_context['income_ratio']:.2%}** of Census 2024 median "
+            f"household income **{census_income}** and "
+            f"**{price_context['net_worth_ratio']:.2%}** of Federal Reserve SCF 2022 "
+            f"median family net worth **{fed_net_worth}**."
+        )
     st.caption(ui_text(lang, "price_context_caption"))
 
 
@@ -4830,7 +4883,7 @@ def make_cost_state(
 
     persona_avg_tokens = 350
     system_prompt_tokens = 400
-    economic_context_tokens = 80
+    economic_context_tokens = 140
     schema_instruction_tokens = 120
     expected_output_tokens_per_persona = 325
     cached_count = 0
@@ -4929,10 +4982,11 @@ def make_hashes(concept: dict[str, Any]) -> dict[str, str]:
         concept["product_price_usd_cents"],
     )
     price_context_hash = compute_price_context_hash(
-        source="bls",
-        period="2024_annual",
+        source="bls_census_federal_reserve",
+        period="bls_2024+census_2024+scf_2022",
         denominator_usd_cents=BLS_2024_ANNUAL_APPAREL_SERVICES_USD_CENTS,
         price_context_version=DEFAULT_PRICE_CONTEXT_VERSION,
+        extra_context=economic_baseline_hash_payload(),
     )
     return {"concept_hash": concept_hash, "price_context_hash": price_context_hash}
 
@@ -5200,10 +5254,21 @@ def _persona_attributes(persona: Persona) -> dict[str, Any]:
 def _economic_context_text(concept: dict[str, Any], price_context: dict[str, Any]) -> str:
     return (
         f"Product price is ${concept['product_price_usd_cents'] / 100:,.2f} USD. "
-        "Against the BLS 2024 annual Apparel and services baseline, "
-        f"the ratio is {price_context['price_burden_ratio']:.2f}x and "
-        f"the price burden label is {price_context['price_burden_label']}. "
-        "This is price context only, not a real purchasing-power judgment."
+        "Official U.S. economic reference points: "
+        "BLS Consumer Expenditure Survey 2024 annual Apparel and services baseline "
+        f"${price_context['apparel_services_annual_usd']:,.0f}; "
+        "BLS 2024 average income before taxes "
+        f"${price_context['bls_average_income_before_taxes_usd']:,.0f}; "
+        "Census CPS ASEC 2024 median household income "
+        f"${price_context['census_median_household_income_usd']:,.0f}; "
+        "Federal Reserve SCF 2022 median family net worth "
+        f"${price_context['fed_scf_median_family_net_worth_usd']:,.0f}. "
+        f"Price is {price_context['price_burden_ratio']:.2f}x the apparel baseline, "
+        f"{price_context['income_ratio']:.2%} of Census median household income, "
+        f"and {price_context['net_worth_ratio']:.2%} of Fed SCF median family net worth. "
+        f"Price burden label: {price_context['price_burden_label']}. "
+        "These are national official baselines only, not persona-specific income, "
+        "wealth, purchasing power, or purchase intent."
     )
 
 

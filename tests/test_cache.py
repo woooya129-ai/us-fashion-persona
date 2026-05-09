@@ -118,6 +118,23 @@ class TestComputePriceContextHash:
         h2 = compute_price_context_hash("bls", "2024_annual", 200_100, "v2")
         assert h1 != h2
 
+    def test_different_extra_context(self):
+        h1 = compute_price_context_hash(
+            "bls_census_federal_reserve",
+            "bls_2024+census_2024+scf_2022",
+            200_100,
+            "v1",
+            extra_context={"census_2024_median_household_income_usd": 83_730},
+        )
+        h2 = compute_price_context_hash(
+            "bls_census_federal_reserve",
+            "bls_2024+census_2024+scf_2022",
+            200_100,
+            "v1",
+            extra_context={"census_2024_median_household_income_usd": 84_000},
+        )
+        assert h1 != h2
+
 
 class TestComputeCacheKey:
     BASE_ARGS = {

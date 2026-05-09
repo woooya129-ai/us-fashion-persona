@@ -18,10 +18,11 @@ This tool helps you prepare for a better real survey. It does not replace a real
 
 ```mermaid
 flowchart LR
-  A["Fashion idea"] --> B["Product card"]
-  B --> C["AI persona panel"]
-  C --> D["Fast reaction check"]
-  D --> E["Better real survey"]
+  A["Synthetic personas"] --> C["Persona panel"]
+  B["Product card"] --> C
+  C --> D["Taste check"]
+  D --> E["Early signals"]
+  E --> F["Next step"]
 ```
 
 ## What It Checks
@@ -69,7 +70,13 @@ The main external dataset is [NVIDIA Nemotron-Personas-USA](https://huggingface.
 
 The dataset is synthetic. It is not a list of real people. It gives persona-style context for early product thinking.
 
-For price context, this app uses the BLS 2024 Consumer Expenditure `Apparel and services` yearly spend baseline. This is only a simple price-burden reference. It is not income, wealth, or purchase intent.
+For economic context, this app uses three official U.S. baselines:
+
+- BLS 2024 Consumer Expenditure `Apparel and services`: $2,001 per year
+- Census CPS ASEC 2024 median household income: $83,730
+- Federal Reserve SCF 2022 median family net worth: $192,900
+
+These values help show price burden, income context, and asset context. They are national reference points only. They are not persona-specific income, wealth, purchasing power, or purchase intent.
 
 ## Run Locally
 

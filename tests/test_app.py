@@ -157,7 +157,7 @@ def hashes() -> dict[str, str]:
 
 @pytest.fixture
 def price_context() -> dict:
-    return {"price_burden_ratio": 0.5, "price_burden_label": "medium"}
+    return app.make_price_context(15_900)
 
 
 def test_build_persona_payloads_confines_concept_to_prompt(
@@ -194,6 +194,9 @@ def test_build_persona_payloads_confines_concept_to_prompt(
         payload["cache_metadata"],
         ensure_ascii=False,
     )
+    assert "Census CPS ASEC 2024 median household income" in payload["prompt"]["user"]
+    assert "Federal Reserve SCF 2022 median family net worth" in payload["prompt"]["user"]
+    assert "BLS Consumer Expenditure Survey 2024" in payload["prompt"]["user"]
 
 
 def test_make_run_meta_uses_dataset_and_hash_metadata(
@@ -223,6 +226,20 @@ def test_make_run_meta_uses_dataset_and_hash_metadata(
     assert meta.price_context_hash == hashes["price_context_hash"]
     assert meta.prompt_version == app.PROMPT_VERSION
     assert meta.schema_version == app.SCHEMA_VERSION
+
+
+def test_make_price_context_includes_us_official_income_and_asset_baselines() -> None:
+    context = app.make_price_context(20_010)
+
+    assert context["price_burden_ratio"] == pytest.approx(0.1)
+    assert context["price_burden_label"] == "low"
+    assert context["apparel_services_annual_usd"] == 2_001
+    assert context["bls_average_income_before_taxes_usd"] == 104_207
+    assert context["census_median_household_income_usd"] == 83_730
+    assert context["fed_scf_median_family_net_worth_usd"] == 192_900
+    assert context["fed_scf_mean_family_net_worth_usd"] == 1_063_700
+    assert context["income_ratio"] == pytest.approx(200.10 / 83_730)
+    assert context["net_worth_ratio"] == pytest.approx(200.10 / 192_900)
 
 
 def test_cached_sync_evaluator_uses_cache_without_llm_call(tmp_path: Path) -> None:

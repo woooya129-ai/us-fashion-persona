@@ -424,7 +424,19 @@ def test_app_source_has_no_unsafe_html_or_direct_asyncio_run() -> None:
 
 
 def test_app_source_uses_readable_comfort_tokens_with_targeted_hero_gradient() -> None:
-    source = (Path(__file__).resolve().parent.parent / "src" / "app.py").read_text(encoding="utf-8")
+    repo_root = Path(__file__).resolve().parent.parent
+    source = "\n".join(
+        (repo_root / rel_path).read_text(encoding="utf-8")
+        for rel_path in (
+            "src/app.py",
+            "src/app_config.py",
+            "src/ui/assets.py",
+            "src/ui/copy.py",
+            "src/ui/dynamic_css.py",
+            "src/ui/rendering.py",
+            "src/ui/static_css.py",
+        )
+    )
     assert "Pretendard" in source
     assert "#3a3d42" in source
     assert "#f7f6f2" in source

@@ -1,4 +1,4 @@
-# 자격증명
+# Secrets and local credentials
 .env
 .env.*
 !.env.example
@@ -7,28 +7,21 @@
 id_rsa*
 id_ed25519*
 
-# 데이터
+# Local data and runtime output
 data/raw/*
 data/processed/*
 data/cached/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/cached/.gitkeep
-
-# 캐시
 cache/*
-*.db
-*.sqlite
-*.sqlite-journal
-*.sqlite-wal
-!cache/.gitkeep
-
-# 출력물
 outputs/*
+logs/*
+!cache/.gitkeep
 !outputs/.gitkeep
+!logs/.gitkeep
 
-# config 산출물 보호 (current-update-review I5)
-# 현재 commit 대상은 pricing_config.yaml + .gitkeep 만.
+# Local config overrides and credentials
 config/*.local.*
 config/*secret*
 config/*credential*
@@ -39,45 +32,77 @@ config/secrets.yml
 !config/pricing_config.yaml
 !config/.gitkeep
 
-# 데이터 파일
+# Generated data files
+*.db
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
 *.parquet
 *.pkl
 *.h5
+*.log
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.pytest-tmp/
+.pytest-tmp*/
 .mypy_cache/
 .ruff_cache/
+.cache/
 .coverage
 htmlcov/
 .venv/
 venv/
 env/
+*.egg-info/
 
-# IDE
+# Local-only assistant and operating notes
+.agents/
+.claude/
+.codex/
+.codex-tmp-*/
+.local-notes/
+claude-advisor/
+AGENTS.md
+CLAUDE.md
+CLAUDE_ADVISOR_FALLBACK.md
+SECURITY_HARNESS.md
+REPO_MAP.md
+SESSION_*.md
+check-cost.md
+codex/
+codex-comments/
+plan/
+pm/
+woo/
+woo-check-0502.md
+us-fashion-persona-work-plan-v3.md
+Datasets-nvidia-Nemotron-Personas-USA.md
+
+# Local design drafts and unpublished docs
+design/*
+!design/direction-bg.png
+!design/hero-skyblue-fabric.png
+docs/CNAME
+docs/github-front/
+docs/install/
+docs/ops/
+docs/public/
+docs/ui/
+scripts/export_public_repo.ps1
+
+# Local assistant/editor state
+.obsidian/
 .vscode/
 .idea/
+
+# Editor and temporary files
 *.swp
 *.swo
 .DS_Store
-
-# 로그
-*.log
-logs/*
-!logs/.gitkeep
-
-# 임시 파일
 *.tmp
 *.bak
 *~
-
-# Obsidian local vault state/plugins
-.obsidian/
-
-# Claude/Codex local worktrees (runtime only, never commit)
-.claude/worktrees/
-.codex-tmp-*/
-.pytest-tmp/

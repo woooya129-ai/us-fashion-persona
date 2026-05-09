@@ -65,15 +65,13 @@ def _provider_from_str(provider: str) -> Provider:
 
 
 def _persona_attributes_text(persona: Persona) -> str:
-    location = " ".join(part for part in [persona.province, persona.district] if part)
+    location = " ".join(part for part in [persona.city, persona.state, persona.zipcode] if part)
     fields = [
         f"{persona.age}세",
         persona.sex,
         location,
         persona.occupation,
         persona.marital_status,
-        persona.family_type,
-        persona.housing_type,
         persona.education_level,
     ]
     return " / ".join(field for field in fields if field)
@@ -93,8 +91,9 @@ def _persona_attributes(persona: Persona) -> dict[str, Any]:
     return {
         "age": persona.age,
         "sex": persona.sex,
-        "province": persona.province,
-        "district": persona.district,
+        "state": persona.state,
+        "city": persona.city,
+        "zipcode": persona.zipcode,
         "occupation": persona.occupation,
     }
 
@@ -155,7 +154,7 @@ def build_persona_payloads(
             economic_context_text=economic_context_text,
             category=concept["category"],
             concept_text=concept["concept_text"],
-            price_krw=concept["product_price_usd_cents"],
+            price_usd_cents=concept["product_price_usd_cents"],
             prompt_template_md=prompt_template_md,
         )
         cache_key = compute_cache_key(

@@ -48,6 +48,12 @@ uv run streamlit run src/app.py
 http://localhost:8501
 ```
 
+정적 문서 버튼까지 로컬에서 열고 싶으면 다른 터미널에서 실행한다.
+
+```bash
+uv run python -m http.server 8510
+```
+
 ## 5. API key 설정
 
 실제 API key를 저장소 안에 넣지 마라.

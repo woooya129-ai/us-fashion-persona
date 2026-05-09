@@ -2,6 +2,15 @@
 
 ## 0.5.3 - 2026-05-10 (Attribution and rights positioning)
 
+- Aligned repository structure and file management with the k-fashion-persona
+  v0.5.3 twin: root-only duplicate docs removed, install docs kept under
+  `docs/`, and local operating files kept out of the public commit surface.
+- Split Streamlit UI copy, CSS, assets, and rendering helpers into `src/ui/*`
+  and restored `src/app.py` to a thin entry point over `src/orchestrator`.
+- Fixed USA orchestration fields to use `state`, `city`, `zipcode`, and
+  `price_usd_cents` consistently in prompt payloads.
+- Updated pre-commit Bandit hook to a version that supports the configured
+  security skip profile.
 - Added `data/public/us_household_context.csv` and segment-based U.S. official
   economic context so the USA project can run national or age-reference
   baselines like the Korea twin.

@@ -6,7 +6,7 @@
 [![HF Dataset](https://img.shields.io/badge/HF-Dataset-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA)
 [![GitHub](https://img.shields.io/badge/GitHub-us--fashion--persona-181717?logo=github&logoColor=white)](https://github.com/woooya129-ai/us-fashion-persona)
 [![Twin Project](https://img.shields.io/badge/GitHub-k--fashion--persona-181717?logo=github&logoColor=white)](https://github.com/woooya129-ai/k-fashion-persona)
-[![Docs](https://img.shields.io/badge/Docs-INSTALL--ENG-2563EB?logo=readthedocs&logoColor=white)](docs/INSTALL-ENG.md)
+[![Docs](https://img.shields.io/badge/Docs-INSTALL-2563EB?logo=readthedocs&logoColor=white)](docs/INSTALL.md)
 [![Korean README](https://img.shields.io/badge/README-Korean-2563EB)](README-KOR.md)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-0F766E.svg)](LICENSE)
 [![Citation](https://img.shields.io/badge/citation-CFF-2563EB)](CITATION.cff)
@@ -111,7 +111,7 @@ Open:
 http://localhost:8501
 ```
 
-For full setup details, see [docs/INSTALL-ENG.md](docs/INSTALL-ENG.md).
+For full setup details, see [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Local Checks
 

@@ -1,6 +1,6 @@
 ---
 title: US Fashion Persona
-emoji:
+emoji: "👕"
 colorFrom: blue
 colorTo: green
 sdk: docker

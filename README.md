@@ -50,6 +50,8 @@ analysis, and expert review.
 
 ## Nemotron-Personas-USA Overview
 
+![Nemotron-Personas-USA data designer flow](docs/assets/nemotron-personas-usa.svg)
+
 The default panel comes from
 [NVIDIA Nemotron-Personas-USA](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA),
 a synthetic US-context persona dataset. In this project it is used as a

@@ -24,15 +24,21 @@ tags:
 [![Version](https://img.shields.io/badge/version-0.6.2-0F766E)](pyproject.toml)
 [![HF Dataset](https://img.shields.io/badge/HF-Dataset-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA)
 [![GitHub](https://img.shields.io/badge/GitHub-us--fashion--persona-181717?logo=github&logoColor=white)](https://github.com/woooya129-ai/us-fashion-persona)
+[![HF Space](https://img.shields.io/badge/HF%20Space-us--fashion--persona-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/spaces/w00ya/us-fashion-persona)
+[![Live App](https://img.shields.io/badge/Live%20App-hf.space-0F766E)](https://w00ya-us-fashion-persona.hf.space)
 [![Twin Project](https://img.shields.io/badge/GitHub-k--fashion--persona-181717?logo=github&logoColor=white)](https://github.com/woooya129-ai/k-fashion-persona)
 [![Docs](https://img.shields.io/badge/Docs-INSTALL-2563EB?logo=readthedocs&logoColor=white)](docs/INSTALL.md)
 [![Korean README](https://img.shields.io/badge/README-Korean-2563EB)](README-KOR.md)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-0F766E.svg)](LICENSE)
 
+![us-fashion-persona overview](docs/assets/us-fashion-persona-images.jpeg)
+
 `us-fashion-persona` is a local-first Streamlit tool for checking US fashion
-product concepts before launch or formal research. Enter a product card and
+product concepts before launch or formal research. The default language is
+English, the default panel is NVIDIA Nemotron-Personas-USA, and the economic
+context uses US official-statistics references. Enter a product card and
 persona filters, then get a Markdown/CSV report with interest reasons,
-hesitation points, price burden, and fashion risk signals.
+hesitation points, price-burden context, and fashion risk signals.
 
 It is not a real purchase-rate, sales, trend, or market-share prediction
 service. Use it to narrow hypotheses before surveys, interviews, sales-data
@@ -41,6 +47,18 @@ analysis, and expert review.
 ![us-fashion-persona main screen](docs/assets/us-fashion-persona-screenshot-03.webp)
 
 ![us-fashion-persona result screen](docs/assets/us-fashion-persona-screenshot-04.webp)
+
+## Nemotron-Personas-USA Overview
+
+The default panel comes from
+[NVIDIA Nemotron-Personas-USA](https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA),
+a synthetic US-context persona dataset. In this project it is used as a
+simulated screening panel, not as a source of real customer responses.
+
+The app can filter and sample personas by fields such as age, sex, US
+state/territory, occupation, seed, and sample size. The generated report should
+be read as concept pre-screening: it can surface weak points in the product
+story, but it does not measure real US consumer demand.
 
 ## At A Glance
 
@@ -52,6 +70,23 @@ analysis, and expert review.
 | Output | Reaction distribution, interest score, reasons, concerns, price burden, representative card, Markdown/CSV |
 | Presets | FAST 50, BALANCE 100, HIGH 300, MAX 1000 personas |
 | Advanced | User-entered sample sizes are allowed up to the guardrail |
+
+## Report Output Shape
+
+The Markdown/CSV report is designed for early concept review. It includes:
+
+- Synthetic panel reaction distribution
+- US official-statistics price context
+- Result quality counts for successful, parse-failed, and API-failed rows
+- Price-burden distribution
+- Main positive reasons and hesitation reasons
+- Fashion risk signals from `main_concerns`
+- Deterministic modification suggestion candidates
+- Representative persona reactions with abstracted labels
+- Age, sex, state/territory, occupation, and price-burden segment tables
+
+The report may help decide what to test next. It should not be treated as a
+purchase-rate estimate, sales forecast, or market-share forecast.
 
 ## Runtime Model
 
@@ -99,6 +134,18 @@ Open:
 ```text
 http://localhost:8501
 ```
+
+## Hosted Space
+
+The public HF Space is available at:
+
+- Space repo: <https://huggingface.co/spaces/w00ya/us-fashion-persona>
+- Live app: <https://w00ya-us-fashion-persona.hf.space>
+
+The Space is configured as a Docker Space. Public deployments should require
+visitors to enter their own provider API key, using
+`UFPS_REQUIRE_USER_PROVIDER_KEY=1`, so owner-side LLM keys are not bundled into
+the hosted demo.
 
 ## Standard Use
 
@@ -180,6 +227,9 @@ at `data/public/us_household_context.csv`:
 - U.S. Census CPS ASEC 2024 HINC-02: median household income by householder age
 - Federal Reserve SCF 2022: median and mean family net worth by age group
 
+These statistics are aggregate context only. They do not infer a persona's
+actual income, wealth, purchasing power, or purchase intent.
+
 ## Recommended Specs
 
 | Item | Minimum | Recommended |
@@ -192,6 +242,22 @@ at `data/public/us_household_context.csv`:
 
 Large samples usually increase LLM API cost and runtime before RAM becomes the
 bottleneck.
+
+## Result Interpretation
+
+Use the output to compare early concepts, find product-story friction, and
+prepare better survey or interview questions. Treat repeated concerns about
+price, fit, styling, material care, or occasion mismatch as signals to inspect,
+not as proof that a product will succeed or fail.
+
+## Limitations
+
+- The panel is synthetic and does not contain real shoppers.
+- LLM output can vary by provider, model, prompt version, seed, and sample.
+- Dataset coverage does not guarantee coverage of every US subculture,
+  community, income bracket, or fashion niche.
+- The app does not replace real consumer research, legal advice, expert
+  merchandising review, or actual sales data.
 
 ## License And Attribution
 

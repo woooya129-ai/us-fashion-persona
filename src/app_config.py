@@ -123,6 +123,7 @@ OCCUPATION_KEYWORD_OPTIONS: tuple[str, ...] = (
     "예술",
 )
 BEGINNER_MODEL_PRIORITY: tuple[str, ...] = (
+    "gpt-5.5",
     "gpt-4o-mini",
     "gpt-5-mini",
     "gpt-5-nano",

@@ -118,6 +118,8 @@ class TestProductionConfigShape:
         production_path = Path(__file__).parent.parent / "config" / "pricing_config.yaml"
         config = load_pricing_config(production_path)
         assert len(config) >= 1
+        assert "gpt-5.5" in config
+        assert "gpt-5.5-pro" in config
         assert "gpt-5.2" in config
         assert "gpt-5.2-pro" in config
         assert "gpt-5-mini" in config

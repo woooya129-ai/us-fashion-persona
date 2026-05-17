@@ -19,6 +19,11 @@ class EvaluationResult(BaseModel):
     }
 
 
-def parse_evaluation_result(data: dict[str, Any]) -> EvaluationResult:
+def validate_evaluation_payload(data: dict[str, Any]) -> EvaluationResult:
     """dict → EvaluationResult. 검증 실패 시 ValidationError."""
     return EvaluationResult.model_validate(data)
+
+
+def parse_evaluation_result(data: dict[str, Any]) -> EvaluationResult:
+    """Backward-compatible alias for validate_evaluation_payload."""
+    return validate_evaluation_payload(data)

@@ -50,6 +50,7 @@ UI_COPY: dict[str, dict[str, str]] = {
         "hero_license_aria": "GitHub LICENSE 파일 열기",
         "cost_confirm_toast": "실행하려면 예상 비용·시간 확인에 체크하세요.",
         "active_job_notice": "진행 중인 작업이 있어. 완료 또는 취소 후 새 실행이 가능해.",
+        "job_already_running": "이미 실행 중인 작업이 있어. 취소하거나 완료를 기다려.",
         "guide_eyebrow": "쉬운 4단계 진행",
         "guide_title": "입력하고, 고르고, 실행하고, 읽으면 끝.",
         "guide_1_title": "컨셉 입력",
@@ -106,6 +107,34 @@ UI_COPY: dict[str, dict[str, str]] = {
         "token_price_basis": "{sample_size} personas",  # nosec B105
         "total_cost_label": "Final total",
         "total_cost_basis": "Input + output",
+        "provider_label": "Provider",
+        "model_label": "Model",
+        "rate_unit_label": "요금 단위",
+        "per_million_tokens": "USD / 1M tokens",
+        "input_rate_label": "Input 단가",
+        "output_rate_label": "Output 단가",
+        "checked_at_label": "가격 확인일",
+        "source_url_label": "가격 출처",
+        "price_unset": "가격 미설정",
+        "verification_label": "호출 검증",
+        "unverified_provider": "검증 전 provider라 실제 호출이 실패할 수 있어.",
+        "estimate_only": "참고 추정",
+        "estimate_basis_label": "추정 기준",
+        "sidebar_estimate_basis": "{sample_size}명 · 짧은 제품 카드",
+        "run_tokens_label": "이번 실행 토큰",
+        "cost_input_label": "입력 비용",
+        "cost_output_label": "출력 비용",
+        "cost_max_output_label": "출력 추정 / 상한",
+        "cost_unit_note": (
+            "1M token 단가는 과금 단위고, 이번 실행은 그중 일부만 써. "
+            "실제 과금은 tokenizer, 출력 길이, 재시도, provider 계정 조건에 따라 달라질 수 있어."
+        ),
+        "model_compare_header": "모델별 비용 비교",
+        "model_compare_caption": "현재 제품 카드 길이와 샘플 수 기준 참고 추정치야.",
+        "cost_table_model": "Model",
+        "cost_table_provider": "Provider",
+        "cost_table_rate": "Input/Output 단가",
+        "cost_table_estimate": "실행 추정",
         "advanced_header": "Advanced",
         "advanced_caption": "모델, 데이터, 샘플링, 필터를 직접 조정한다.",
         "advanced_enable": "세부 설정 직접 조정",
@@ -174,6 +203,9 @@ UI_COPY: dict[str, dict[str, str]] = {
         "openai_key_help": "OpenAI 모델 실행용 API KEY 상태야. 값은 표시하지 않아.",
         "anthropic_key_help": "Claude 모델 실행용 API KEY 상태야. 값은 표시하지 않아.",
         "google_key_help": "Gemini 모델 실행용 API KEY 상태야. 값은 표시하지 않아.",
+        "provider_key_help": (
+            "OpenAI-compatible provider 실행용 API KEY 상태야. 값은 표시하지 않아."
+        ),
         "hf_status_help": (
             "Hugging Face 데이터셋 접근용 TOKEN 상태야. 공개 데이터는 보통 없어도 돼."
         ),
@@ -202,10 +234,19 @@ UI_COPY: dict[str, dict[str, str]] = {
             "실행하면 선택한 AI 모델이 합성 페르소나에게 컨셉을 물어봐. "
             "패널 수만큼 API 요청이 나가고 비용이 발생할 수 있어."
         ),
+        "start_pending_title": "작동 중",
+        "start_pending_toast": "작업을 시작하는 중이야. 잠시 기다려.",
+        "start_pending_body": (
+            "API 연결과 첫 응답을 확인하고 있어. 화면이 잠시 멈춘 것처럼 보여도 작업은 이어져."
+        ),
+        "job_started": "작업 시작",
         "details_header": "자세히",
         "details_summary": "가격 기준, 예상 비용, 재현용 값을 확인한다.",
         "results_preview_header": "페르소나 의견 미리보기",
         "results_preview_body": "대표 의견 5개만 먼저 보여줘. 전체 결과는 엑셀용 파일로 내려받아.",
+        "dominant_preview_header": "최다 반응 대표 카드",
+        "dominant_preview_body": "{sentiment} 반응이 {pct}% ({count}/{total})로 가장 높아.",
+        "dominant_preview_project": "대표 페르소나",
         "excel_download": "엑셀용 CSV 다운로드",
         "results_loading": "합성 페르소나 의견을 모으는 중",
         "persona_preview_empty": "아직 보여줄 성공 결과가 없다.",
@@ -213,6 +254,15 @@ UI_COPY: dict[str, dict[str, str]] = {
         "persona_card_concerns": "망설인 점",
         "persona_card_note": "한줄 의견",
         "status_header": "진행 상태",
+        "status_help_button": "도움말",
+        "status_help_title": "성공/실패 기준",
+        "status_help_body": (
+            "success: API 응답을 받았고 JSON 파싱과 스키마 검증을 통과한 결과야.\n\n"
+            "failed: API 실패, 빈 응답, JSON 파싱 실패, 필수 필드 누락 때문에 "
+            "리포트 분포에서 제외된 결과야.\n\n"
+            "cached: 같은 컨셉과 모델로 저장된 결과를 재사용한 상태야.\n\n"
+            "최종 분포와 요약에는 유효한 JSON 결과만 포함돼."
+        ),
         "job_missing": "현재 작업 정보를 찾을 수 없다.",
         "refresh": "Refresh",
         "cancel": "Cancel",
@@ -282,6 +332,9 @@ UI_COPY: dict[str, dict[str, str]] = {
         "active_job_notice": (
             "A job is already running. Finish or cancel it before starting a new run."
         ),
+        "job_already_running": (
+            "A screening job is already running. Cancel it or wait for completion."
+        ),
         "guide_eyebrow": "Simple 4-step flow",
         "guide_title": "Type it, choose a panel, run, then read.",
         "guide_1_title": "Describe",
@@ -342,6 +395,37 @@ UI_COPY: dict[str, dict[str, str]] = {
         "token_price_basis": "{sample_size} personas",  # nosec B105
         "total_cost_label": "Final total",
         "total_cost_basis": "Input + output",
+        "provider_label": "Provider",
+        "model_label": "Model",
+        "rate_unit_label": "Rate unit",
+        "per_million_tokens": "USD / 1M tokens",
+        "input_rate_label": "Input rate",
+        "output_rate_label": "Output rate",
+        "checked_at_label": "Price checked",
+        "source_url_label": "Price source",
+        "price_unset": "Price unset",
+        "verification_label": "Live-call verification",
+        "unverified_provider": "Unverified provider; calls may fail.",
+        "estimate_only": "Reference estimate",
+        "estimate_basis_label": "Estimate basis",
+        "sidebar_estimate_basis": "{sample_size} personas · short product card",
+        "run_tokens_label": "Run tokens",
+        "cost_input_label": "Input cost",
+        "cost_output_label": "Output cost",
+        "cost_max_output_label": "Output estimate / cap",
+        "cost_unit_note": (
+            "The 1M-token price is the billing unit. This run uses only part of it. "
+            "Actual billing can vary by tokenizer, output length, retries, "
+            "and provider account terms."
+        ),
+        "model_compare_header": "Model Cost Comparison",
+        "model_compare_caption": (
+            "Reference one-run estimate for the current product-card length and sample size."
+        ),
+        "cost_table_model": "Model",
+        "cost_table_provider": "Provider",
+        "cost_table_rate": "Input/output rate",
+        "cost_table_estimate": "Run estimate",
         "advanced_header": "Advanced",
         "advanced_caption": "Directly control model, data source, sampling, and filters.",
         "advanced_enable": "Customize advanced settings",
@@ -415,6 +499,9 @@ UI_COPY: dict[str, dict[str, str]] = {
         "openai_key_help": "OpenAI API KEY status for model calls. Values are never shown.",
         "anthropic_key_help": "Claude API KEY status for model calls. Values are never shown.",
         "google_key_help": "Gemini API KEY status for model calls. Values are never shown.",
+        "provider_key_help": (
+            "API KEY status for OpenAI-compatible provider calls. Values are never shown."
+        ),
         "hf_status_help": (
             "HF TOKEN status for Hugging Face data access. Public data usually works without it."
         ),
@@ -445,12 +532,22 @@ UI_COPY: dict[str, dict[str, str]] = {
             "Running asks the selected AI model to evaluate the concept through synthetic "
             "personas. API requests and cost can increase with panel size."
         ),
+        "start_pending_title": "Working",
+        "start_pending_toast": "Starting the run. Please wait a moment.",
+        "start_pending_body": (
+            "Checking the API connection and first response. "
+            "Work continues even if the screen looks dim for a moment."
+        ),
+        "job_started": "Job started",
         "details_header": "Details",
         "details_summary": "Check price context, cost estimate, and reproducibility values.",
         "results_preview_header": "Persona opinion preview",
         "results_preview_body": (
             "Shows 5 representative opinions first. Download the full data for Excel."
         ),
+        "dominant_preview_header": "Top-response representative card",
+        "dominant_preview_body": "{sentiment} responses are highest at {pct}% ({count}/{total}).",
+        "dominant_preview_project": "Representative persona",
         "excel_download": "Download CSV for Excel",
         "results_loading": "Collecting synthetic persona opinions",
         "persona_preview_empty": "No successful opinion rows to preview yet.",
@@ -458,6 +555,16 @@ UI_COPY: dict[str, dict[str, str]] = {
         "persona_card_concerns": "Concerns",
         "persona_card_note": "Note",
         "status_header": "Progress",
+        "status_help_button": "Help",
+        "status_help_title": "Success/failure criteria",
+        "status_help_body": (
+            "success: API response was received and passed JSON parsing plus schema validation.\n\n"
+            "failed: API failure, missing response, JSON parsing failure, "
+            "or missing required fields "
+            "kept the row out of the report distribution.\n\n"
+            "cached: A stored result for the same concept and model was reused.\n\n"
+            "Only valid JSON results are included in the final distribution and summary."
+        ),
         "job_missing": "Current job record was not found.",
         "refresh": "Refresh",
         "cancel": "Cancel",

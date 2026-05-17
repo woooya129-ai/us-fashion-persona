@@ -15,9 +15,17 @@ import streamlit.components.v1 as components
 from src import secrets_loader
 from src.app_config import (
     BEGINNER_MODEL_PRIORITY,
+    DEFAULT_HF_MAX_SCAN_ROWS,
     DEFAULT_PRICE_CONTEXT_VERSION,
     DEFAULT_TEMPERATURE,
     DEFAULT_UI_LANGUAGE,
+    ESTIMATE_ECONOMIC_CONTEXT_TOKENS,
+    ESTIMATE_OUTPUT_TOKENS_PER_PERSONA,
+    ESTIMATE_PERSONA_TOKENS,
+    ESTIMATE_SCHEMA_INSTRUCTION_TOKENS,
+    ESTIMATE_SIDEBAR_CONCEPT_TOKENS,
+    ESTIMATE_SYSTEM_PROMPT_TOKENS,
+    MAX_OUTPUT_TOKENS_PER_PERSONA,
     MAX_SAMPLE_SIZE,
     OCCUPATION_KEYWORD_OPTIONS,
     PRODUCT_CARD_EMPTY_PLACEHOLDER,
@@ -29,6 +37,8 @@ from src.app_config import (
 from src.cache import compute_concept_hash, compute_price_context_hash, normalize_concept_text
 from src.cost_estimator import (
     DEFAULT_CONCURRENCY,
+    CostEstimate,
+    TokenEstimate,
     count_tokens_approx,
     estimate_cost,
     estimate_tokens,
@@ -61,10 +71,82 @@ from src.ui.dynamic_css import build_comfort_ui_css
 ResultRow = dict[str, Any]
 
 
-def _safe_provider_key(provider: str, override_key: str) -> str | None:
+_PRODUCT_AUDIENCE_ORDER: tuple[str, ...] = ("womenswear", "menswear", "unisex")
+_PRODUCT_AUDIENCE_SEX_FILTER: dict[str, frozenset[str]] = {
+    "womenswear": frozenset({"F"}),
+    "menswear": frozenset({"M"}),
+    "unisex": frozenset(),
+}
+_PRODUCT_AUDIENCE_LABELS: dict[str, dict[str, str]] = {
+    "KR": {"womenswear": "여성", "menswear": "남성", "unisex": "유니섹스"},
+    "EN": {"womenswear": "Women", "menswear": "Men", "unisex": "Unisex"},
+}
+
+
+def _product_audience_label(lang: str, audience: str) -> str:
+    labels = _PRODUCT_AUDIENCE_LABELS.get(lang, _PRODUCT_AUDIENCE_LABELS["KR"])
+    return labels.get(audience, labels["womenswear"])
+
+
+def _product_audience_options(lang: str) -> list[str]:
+    return [_product_audience_label(lang, audience) for audience in _PRODUCT_AUDIENCE_ORDER]
+
+
+def _product_audience_from_label(lang: str, label: str | None) -> str:
+    labels = _PRODUCT_AUDIENCE_LABELS.get(lang, _PRODUCT_AUDIENCE_LABELS["KR"])
+    reverse = {value: key for key, value in labels.items()}
+    return reverse.get(str(label or ""), "womenswear")
+
+
+def _sex_filter_for_product_audience(audience: str) -> frozenset[str]:
+    return _PRODUCT_AUDIENCE_SEX_FILTER.get(audience, frozenset({"F"}))
+
+
+def _set_product_audience_selection(lang: str, audience: str) -> None:
+    label = _product_audience_label(lang, audience)
+    st.session_state["kfps_product_audience_value"] = audience
+    st.session_state["kfps_product_audience"] = label
+
+
+def _current_product_audience(lang: str) -> str:
+    audience = str(st.session_state.get("kfps_product_audience_value") or "")
+    if audience not in _PRODUCT_AUDIENCE_ORDER:
+        audience = _product_audience_from_label(
+            lang,
+            str(st.session_state.get("kfps_product_audience")),
+        )
+    if audience not in _PRODUCT_AUDIENCE_ORDER:
+        audience = "womenswear"
+    _set_product_audience_selection(lang, audience)
+    return audience
+
+
+def _render_product_audience_buttons(lang: str) -> None:
+    current = _current_product_audience(lang)
+    with st.container(key="kfps_product_audience_buttons"):
+        st.caption("Product audience" if lang == "EN" else "제품 성별")
+        cols = st.columns(3, gap="small")
+        for idx, audience in enumerate(_PRODUCT_AUDIENCE_ORDER):
+            cols[idx].button(
+                _product_audience_label(lang, audience),
+                key=f"kfps_product_audience_button_{audience}",
+                on_click=_set_product_audience_selection,
+                args=(lang, audience),
+                type="primary" if audience == current else "secondary",
+                use_container_width=True,
+            )
+
+
+def _safe_provider_key(
+    provider: str,
+    override_key: str,
+    api_key_env: str | None = None,
+) -> str | None:
     if override_key.strip():
         return override_key.strip()
     try:
+        return secrets_loader.get_provider_key(provider, api_key_env=api_key_env)
+    except TypeError:
         return secrets_loader.get_provider_key(provider)
     except ValueError:
         return None
@@ -91,6 +173,29 @@ def _model_sort_key(alias: str) -> tuple[str, int, tuple[int, ...], str]:
                 return ("claude", rank, _model_version_sort(lower), lower)
         return ("claude", 99, _model_version_sort(lower), lower)
     return (lower, 0, _model_version_sort(lower), lower)
+
+
+def _provider_display_name(provider: str, api_key_env: str | None = None) -> str:
+    if provider == "openai_compatible" and api_key_env:
+        prefix = api_key_env.removesuffix("_API_KEY")
+        provider_names = {
+            "GROQ": "Groq",
+            "DEEPSEEK": "DeepSeek",
+            "QWEN": "Qwen",
+        }
+        return provider_names.get(prefix, prefix.replace("_", " ").title())
+    return {
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+        "google": "Google",
+        "openai_compatible": "OpenAI-compatible",
+    }.get(provider, provider)
+
+
+def _model_option_label(alias: str, pricing_config: dict[str, ModelPricing]) -> str:
+    pricing = pricing_config[alias]
+    provider_label = _provider_display_name(pricing.provider, pricing.api_key_env)
+    return f"{provider_label} / {alias}"
 
 
 def _sorted_model_options(pricing_config: dict[str, ModelPricing]) -> list[str]:
@@ -255,24 +360,73 @@ def render_input_section_heading(title: str) -> None:
     )
 
 
-def _estimate_sidebar_cost(sample_size: int, pricing: ModelPricing) -> tuple[float, float]:
-    token_est = estimate_tokens(
-        system_prompt_tokens=400,
-        persona_tokens=350,
-        concept_tokens=0,
-        economic_context_tokens=140,
-        schema_instruction_tokens=120,
-        expected_output_tokens_per_persona=325,
-        new_call_count=sample_size,
+def _estimate_run_tokens(sample_size: int, concept_tokens: int) -> TokenEstimate:
+    return estimate_tokens(
+        system_prompt_tokens=ESTIMATE_SYSTEM_PROMPT_TOKENS,
+        persona_tokens=ESTIMATE_PERSONA_TOKENS,
+        concept_tokens=max(0, int(concept_tokens)),
+        economic_context_tokens=ESTIMATE_ECONOMIC_CONTEXT_TOKENS,
+        schema_instruction_tokens=ESTIMATE_SCHEMA_INSTRUCTION_TOKENS,
+        expected_output_tokens_per_persona=ESTIMATE_OUTPUT_TOKENS_PER_PERSONA,
+        new_call_count=max(0, int(sample_size)),
         cached_count=0,
     )
-    cost_est = estimate_cost(
+
+
+def _estimate_model_cost(token_est: TokenEstimate, pricing: ModelPricing) -> CostEstimate | None:
+    if pricing.input_per_million_usd is None or pricing.output_per_million_usd is None:
+        return None
+    return estimate_cost(
         token_est,
         pricing.input_per_million_usd,
         pricing.output_per_million_usd,
         concurrency=DEFAULT_CONCURRENCY,
     )
-    return cost_est.estimated_cost_usd_low, cost_est.estimated_cost_usd_high
+
+
+def _estimate_sidebar_cost(
+    sample_size: int,
+    pricing: ModelPricing,
+) -> tuple[TokenEstimate, CostEstimate | None]:
+    token_est = _estimate_run_tokens(sample_size, ESTIMATE_SIDEBAR_CONCEPT_TOKENS)
+    return token_est, _estimate_model_cost(token_est, pricing)
+
+
+def _format_tokens(tokens: int) -> str:
+    if tokens >= 1_000:
+        return f"{tokens / 1_000:.1f}K"
+    return str(tokens)
+
+
+def _format_usd(value: float) -> str:
+    if value < 0.01:
+        return f"${value:.4f}"
+    return f"${value:.2f}"
+
+
+def _format_price(value: float | None, lang: str) -> str:
+    if value is None:
+        return ui_text(lang, "price_unset")
+    return _format_usd(value)
+
+
+def _format_cost_range(cost_est: CostEstimate) -> str:
+    return (
+        f"{_format_usd(cost_est.estimated_cost_usd_low)} - "
+        f"{_format_usd(cost_est.estimated_cost_usd_high)}"
+    )
+
+
+def _input_cost_usd(token_est: TokenEstimate, pricing: ModelPricing) -> float:
+    if pricing.input_per_million_usd is None:
+        return 0.0
+    return token_est.estimated_input_tokens_total / 1_000_000 * pricing.input_per_million_usd
+
+
+def _output_cost_usd(token_est: TokenEstimate, pricing: ModelPricing) -> float:
+    if pricing.output_per_million_usd is None:
+        return 0.0
+    return token_est.estimated_output_tokens_total / 1_000_000 * pricing.output_per_million_usd
 
 
 def render_model_metadata(
@@ -283,21 +437,47 @@ def render_model_metadata(
     lang: str = "KR",
 ) -> None:
     rows: list[tuple[str, str]] = [
-        ("Provider", pricing.provider),
-        ("Model", model_name),
-        ("Input", f"${pricing.input_per_million_usd:.2f}/1M"),
-        ("Output", f"${pricing.output_per_million_usd:.2f}/1M"),
+        (
+            ui_text(lang, "provider_label"),
+            _provider_display_name(pricing.provider, pricing.api_key_env),
+        ),
+        (ui_text(lang, "model_label"), model_name),
+        (ui_text(lang, "rate_unit_label"), ui_text(lang, "per_million_tokens")),
+        (ui_text(lang, "input_rate_label"), _format_price(pricing.input_per_million_usd, lang)),
+        (ui_text(lang, "output_rate_label"), _format_price(pricing.output_per_million_usd, lang)),
+        (
+            ui_text(lang, "verification_label"),
+            ui_text(
+                lang,
+                "verified_provider"
+                if getattr(pricing, "verified", True)
+                else "unverified_provider",
+            ),
+        ),
     ]
+    if pricing.checked_at:
+        rows.append((ui_text(lang, "checked_at_label"), pricing.checked_at))
+    if pricing.source_url:
+        rows.append((ui_text(lang, "source_url_label"), pricing.source_url))
     if sample_size is not None:
-        low, high = _estimate_sidebar_cost(sample_size, pricing)
+        token_est, cost_est = _estimate_sidebar_cost(sample_size, pricing)
         rows.extend(
             [
                 (
-                    ui_text(lang, "estimated_price_label"),
-                    ui_text(lang, "token_price_basis").format(sample_size=sample_size),
+                    ui_text(lang, "estimate_basis_label"),
+                    ui_text(lang, "sidebar_estimate_basis").format(sample_size=sample_size),
                 ),
-                (ui_text(lang, "total_cost_basis"), "included"),
-                (ui_text(lang, "total_cost_label"), f"${low:.4f} - ${high:.4f}"),
+                (
+                    ui_text(lang, "run_tokens_label"),
+                    (
+                        f"{_format_tokens(token_est.estimated_input_tokens_total)} input / "
+                        f"{_format_tokens(token_est.estimated_output_tokens_total)} output"
+                    ),
+                ),
+                (
+                    ui_text(lang, "total_cost_label"),
+                    _format_cost_range(cost_est) if cost_est else ui_text(lang, "price_unset"),
+                ),
             ]
         )
     row_html = "".join(
@@ -308,6 +488,8 @@ def render_model_metadata(
         for label, value in rows
     )
     st.html(f'<div class="kfps-model-meta">{row_html}</div>')
+    if not getattr(pricing, "verified", True):
+        st.warning(ui_text(lang, "unverified_provider"))
 
 
 def nav_link_pills_html(lang: str, *, footer: bool = False) -> str:
@@ -496,6 +678,9 @@ def render_secrets_status(lang: str) -> None:
             ("OpenAI", status.openai_present, ui_text(lang, "openai_key_help")),
             ("Anthropic", status.anthropic_present, ui_text(lang, "anthropic_key_help")),
             ("Google", status.google_present, ui_text(lang, "google_key_help")),
+            ("Groq", status.groq_present, ui_text(lang, "provider_key_help")),
+            ("DeepSeek", status.deepseek_present, ui_text(lang, "provider_key_help")),
+            ("Qwen", status.qwen_present, ui_text(lang, "provider_key_help")),
             ("HF Token", status.hf_token_present, ui_text(lang, "hf_status_help")),
         )
         cards = []
@@ -728,7 +913,11 @@ def render_model_inputs(pricing_config: dict[str, ModelPricing], lang: str) -> d
         st.error(ui_text(lang, "model_missing"))
         return {}
 
-    model_alias = st.selectbox(ui_text(lang, "model"), model_options)
+    model_alias = st.selectbox(
+        ui_text(lang, "model"),
+        model_options,
+        format_func=lambda alias: _model_option_label(str(alias), pricing_config),
+    )
     pricing = get_model_pricing(pricing_config, model_alias)
     model_name = pricing.provider_model_id or model_alias
     render_model_metadata(pricing, model_name, lang=lang)
@@ -736,12 +925,14 @@ def render_model_inputs(pricing_config: dict[str, ModelPricing], lang: str) -> d
     api_override = str(st.session_state.get("kfps_api_key", ""))
     hf_override = str(st.session_state.get("kfps_hf_token", ""))
     secrets_status = secrets_loader.load_secrets_from_env_path()
-    api_label = ui_text(lang, "api_key").format(provider=pricing.provider)
+    api_label = ui_text(lang, "api_key").format(
+        provider=_provider_display_name(pricing.provider, pricing.api_key_env)
+    )
     api_key = render_secret_password_input(
         api_label,
         placeholder=ui_text(lang, "api_key_placeholder"),
         key="kfps_api_key",
-        present=bool(_safe_provider_key(pricing.provider, api_override)),
+        present=bool(_safe_provider_key(pricing.provider, api_override, pricing.api_key_env)),
         help_text=ui_text(lang, "api_key_help"),
     )
     hf_token = render_secret_password_input(
@@ -796,6 +987,8 @@ def render_simple_setup(pricing_config: dict[str, ModelPricing], lang: str) -> d
     sample_size = int(preset["sample_size"])
     sampling_seed = 42
     temperature = float(preset["temperature"])
+    _render_product_audience_buttons(lang)
+    product_audience = _current_product_audience(lang)
     dataset: dict[str, Any] = {
         "source": "huggingface",
         "dataset_id": DEFAULT_HF_DATASET_ID,
@@ -805,7 +998,8 @@ def render_simple_setup(pricing_config: dict[str, ModelPricing], lang: str) -> d
     sample = {
         "sample_size": sample_size,
         "sampling_seed": sampling_seed,
-        "filter": PersonaFilter(),
+        "filter": PersonaFilter(sex=_sex_filter_for_product_audience(product_audience)),
+        "max_scan_rows": DEFAULT_HF_MAX_SCAN_ROWS,
     }
 
     with st.expander(
@@ -856,10 +1050,11 @@ def render_simple_setup(pricing_config: dict[str, ModelPricing], lang: str) -> d
             "filter": PersonaFilter(
                 age_min=int(age_min) if age_min > 0 else None,
                 age_max=int(age_max) if age_max < 100 else None,
-                sex=frozenset(sex),
+                sex=frozenset(sex) if sex else _sex_filter_for_product_audience(product_audience),
                 state=frozenset(state),
                 occupation_contains=frozenset(occupation),
             ),
+            "max_scan_rows": DEFAULT_HF_MAX_SCAN_ROWS,
         }
 
         temperature = st.slider("temperature", 0.0, 1.0, temperature, 0.1)
@@ -877,6 +1072,7 @@ def render_simple_setup(pricing_config: dict[str, ModelPricing], lang: str) -> d
         model_options,
         index=model_options.index(model_alias),
         key="kfps_model_alias",
+        format_func=lambda alias: _model_option_label(str(alias), pricing_config),
     )
     pricing = get_model_pricing(pricing_config, model_alias)
     model_name = pricing.provider_model_id or model_alias
@@ -884,12 +1080,14 @@ def render_simple_setup(pricing_config: dict[str, ModelPricing], lang: str) -> d
     api_override = str(st.session_state.get("kfps_api_key", ""))
     hf_override = str(st.session_state.get("kfps_hf_token", ""))
     secrets_status = secrets_loader.load_secrets_from_env_path()
-    api_label = ui_text(lang, "api_key").format(provider=pricing.provider)
+    api_label = ui_text(lang, "api_key").format(
+        provider=_provider_display_name(pricing.provider, pricing.api_key_env)
+    )
     api_key = render_secret_password_input(
         api_label,
         placeholder=ui_text(lang, "api_key_placeholder"),
         key="kfps_api_key",
-        present=bool(_safe_provider_key(pricing.provider, api_override)),
+        present=bool(_safe_provider_key(pricing.provider, api_override, pricing.api_key_env)),
         help_text=ui_text(lang, "api_key_help"),
     )
     hf_token = render_secret_password_input(
@@ -997,36 +1195,19 @@ def make_cost_state(
     if not concept.get("description"):
         return {"ready": False}
 
-    persona_avg_tokens = 350
-    system_prompt_tokens = 400
-    economic_context_tokens = 140
-    schema_instruction_tokens = 120
-    expected_output_tokens_per_persona = 325
     cached_count = 0
     new_call_count = sample["sample_size"] - cached_count
 
     concept_tokens = count_tokens_approx(concept["concept_text"])
-    token_est = estimate_tokens(
-        system_prompt_tokens=system_prompt_tokens,
-        persona_tokens=persona_avg_tokens,
-        concept_tokens=concept_tokens,
-        economic_context_tokens=economic_context_tokens,
-        schema_instruction_tokens=schema_instruction_tokens,
-        expected_output_tokens_per_persona=expected_output_tokens_per_persona,
-        new_call_count=new_call_count,
-        cached_count=cached_count,
-    )
-    cost_est = estimate_cost(
-        token_est,
-        model["pricing"].input_per_million_usd,
-        model["pricing"].output_per_million_usd,
-        concurrency=DEFAULT_CONCURRENCY,
-    )
+    token_est = _estimate_run_tokens(new_call_count, concept_tokens)
+    pricing = model["pricing"]
+    cost_est = _estimate_model_cost(token_est, pricing)
     return {
         "ready": True,
         "new_call_count": new_call_count,
         "token_estimate": token_est,
         "cost_estimate": cost_est,
+        "pricing": pricing,
     }
 
 
@@ -1037,17 +1218,104 @@ def render_cost_estimate(cost_state: dict[str, Any], lang: str) -> None:
         return
 
     cost_est = cost_state["cost_estimate"]
+    token_est = cost_state["token_estimate"]
+    pricing = cost_state["pricing"]
     c1, c2, c3 = st.columns(3)
     c1.metric(ui_text(lang, "new_calls"), f"{cost_state['new_call_count']}명")
     c2.metric(
         ui_text(lang, "estimated_cost"),
-        f"${cost_est.estimated_cost_usd_low:.4f} - ${cost_est.estimated_cost_usd_high:.4f}",
+        _format_cost_range(cost_est) if cost_est else ui_text(lang, "price_unset"),
     )
-    c3.metric(
-        ui_text(lang, "estimated_time"),
-        f"{cost_est.estimated_time_min_low:.1f} - {cost_est.estimated_time_min_high:.1f}분",
+    if cost_est is not None:
+        c3.metric(
+            ui_text(lang, "estimated_time"),
+            f"{cost_est.estimated_time_min_low:.1f} - {cost_est.estimated_time_min_high:.1f}분",
+        )
+    else:
+        c3.metric(ui_text(lang, "estimated_time"), ui_text(lang, "estimate_only"))
+    output_cap_value = (
+        f"{ESTIMATE_OUTPUT_TOKENS_PER_PERSONA} / {MAX_OUTPUT_TOKENS_PER_PERSONA} tokens per persona"
     )
+    breakdown_rows = [
+        (ui_text(lang, "rate_unit_label"), ui_text(lang, "per_million_tokens")),
+        (
+            ui_text(lang, "run_tokens_label"),
+            (
+                f"{_format_tokens(token_est.estimated_input_tokens_total)} input / "
+                f"{_format_tokens(token_est.estimated_output_tokens_total)} output"
+            ),
+        ),
+        (
+            ui_text(lang, "cost_input_label"),
+            _format_usd(_input_cost_usd(token_est, pricing))
+            if pricing.input_per_million_usd is not None
+            else ui_text(lang, "price_unset"),
+        ),
+        (
+            ui_text(lang, "cost_output_label"),
+            _format_usd(_output_cost_usd(token_est, pricing))
+            if pricing.output_per_million_usd is not None
+            else ui_text(lang, "price_unset"),
+        ),
+        (ui_text(lang, "cost_max_output_label"), output_cap_value),
+    ]
+    row_html = "".join(
+        '<div class="kfps-model-meta-row">'
+        f'<span class="kfps-model-meta-label">{html.escape(label)}</span>'
+        f'<span class="kfps-model-meta-value">{html.escape(value)}</span>'
+        "</div>"
+        for label, value in breakdown_rows
+    )
+    st.html(f'<div class="kfps-model-meta">{row_html}</div>')
     st.caption(ui_text(lang, "cost_caption"))
+    st.caption(ui_text(lang, "cost_unit_note"))
+
+
+def render_model_cost_comparison(
+    pricing_config: dict[str, ModelPricing],
+    token_est: TokenEstimate,
+    lang: str,
+) -> None:
+    st.subheader(ui_text(lang, "model_compare_header"))
+    st.caption(ui_text(lang, "model_compare_caption"))
+    rows: list[tuple[float, str, str, str, str]] = []
+    for alias, pricing in pricing_config.items():
+        cost_est = _estimate_model_cost(token_est, pricing)
+        provider = _provider_display_name(pricing.provider, pricing.api_key_env)
+        rate = (
+            f"{_format_price(pricing.input_per_million_usd, lang)} / "
+            f"{_format_price(pricing.output_per_million_usd, lang)}"
+        )
+        if cost_est is None:
+            rows.append((float("inf"), alias, provider, rate, ui_text(lang, "price_unset")))
+            continue
+        rows.append(
+            (cost_est.estimated_cost_usd_low, alias, provider, rate, _format_cost_range(cost_est))
+        )
+    rows.sort(key=lambda row: (row[0], row[1]))
+
+    header_cells = (
+        ui_text(lang, "cost_table_model"),
+        ui_text(lang, "cost_table_provider"),
+        ui_text(lang, "cost_table_rate"),
+        ui_text(lang, "cost_table_estimate"),
+    )
+    header_html = "".join(f"<th>{html.escape(cell)}</th>" for cell in header_cells)
+    body_html = "".join(
+        "<tr>"
+        f"<td>{html.escape(alias)}</td>"
+        f"<td>{html.escape(provider)}</td>"
+        f"<td>{html.escape(rate)}</td>"
+        f"<td>{html.escape(estimate)}</td>"
+        "</tr>"
+        for _low, alias, provider, rate, estimate in rows
+    )
+    st.html(
+        '<div class="kfps-cost-table-wrap"><table class="kfps-cost-table">'
+        f"<thead><tr>{header_html}</tr></thead>"
+        f"<tbody>{body_html}</tbody>"
+        "</table></div>"
+    )
 
 
 def _normalize_card_field(value: Any) -> str:
@@ -1170,11 +1438,14 @@ def render_detailed_run_context(
     cost_state: dict[str, Any],
     hashes: dict[str, str],
     lang: str,
+    pricing_config: dict[str, ModelPricing] | None = None,
 ) -> None:
     with st.expander(ui_text(lang, "details_header"), expanded=False):
         st.caption(ui_text(lang, "details_summary"))
         render_price_context(price_context, lang)
         render_cost_estimate(cost_state, lang)
+        if pricing_config and cost_state.get("ready"):
+            render_model_cost_comparison(pricing_config, cost_state["token_estimate"], lang)
         render_hashes(hashes, lang)
 
 
@@ -1294,6 +1565,76 @@ def persona_opinions_csv(rows: list[dict[str, str]]) -> str:
     return "\ufeff" + output.getvalue()
 
 
+_SENTIMENT_PREVIEW_ORDER = ("positive", "neutral", "negative")
+_SENTIMENT_PREVIEW_LABELS = {
+    "KR": {"positive": "긍정", "neutral": "중립", "negative": "부정"},
+    "EN": {"positive": "positive", "neutral": "neutral", "negative": "negative"},
+}
+
+
+def _sentiment_preview_label(lang: str, sentiment: str) -> str:
+    labels = _SENTIMENT_PREVIEW_LABELS.get(lang, _SENTIMENT_PREVIEW_LABELS["KR"])
+    return labels.get(sentiment, sentiment)
+
+
+def _dominant_sentiment_preview(
+    rows: list[dict[str, str]],
+) -> tuple[str, int, int, float, dict[str, str]] | None:
+    counts = {sentiment: 0 for sentiment in _SENTIMENT_PREVIEW_ORDER}
+    for row in rows:
+        sentiment = row.get("sentiment", "")
+        if sentiment in counts:
+            counts[sentiment] += 1
+    total = sum(counts.values())
+    if total <= 0:
+        return None
+    dominant = max(
+        _SENTIMENT_PREVIEW_ORDER,
+        key=lambda sentiment: (counts[sentiment], -_SENTIMENT_PREVIEW_ORDER.index(sentiment)),
+    )
+    representative = next(row for row in rows if row.get("sentiment") == dominant)
+    pct = round(counts[dominant] / total * 100, 1)
+    return dominant, counts[dominant], total, pct, representative
+
+
+def _dominant_sentiment_card_html(rows: list[dict[str, str]], lang: str) -> str:
+    dominant = _dominant_sentiment_preview(rows)
+    if dominant is None:
+        return ""
+    sentiment, count, total, pct, row = dominant
+    sentiment_label = _sentiment_preview_label(lang, sentiment)
+    summary = ui_text(lang, "dominant_preview_body").format(
+        sentiment=sentiment_label,
+        count=count,
+        total=total,
+        pct=f"{pct:.1f}",
+    )
+    sentiment_class = html.escape(sentiment, quote=True)
+    return f"""
+        <div class="kfps-dominant-opinion">
+          <article class="kfps-opinion-card kfps-dominant-card">
+            <div class="kfps-opinion-project">
+              {html.escape(ui_text(lang, "dominant_preview_project"))}
+            </div>
+            <div class="kfps-opinion-meta">
+              <span>{html.escape(ui_text(lang, "dominant_preview_header"))}</span>
+              <span class="kfps-sentiment {sentiment_class}">
+                {html.escape(sentiment_label)}
+              </span>
+            </div>
+            <p class="kfps-dominant-summary">{html.escape(summary)}</p>
+            <p class="kfps-opinion-profile">{html.escape(row["profile"])}</p>
+            <h4>{html.escape(ui_text(lang, "persona_card_reasons"))}</h4>
+            <p>{html.escape(row["main_reasons"] or "-")}</p>
+            <h4>{html.escape(ui_text(lang, "persona_card_concerns"))}</h4>
+            <p>{html.escape(row["main_concerns"] or "-")}</p>
+            <h4>{html.escape(ui_text(lang, "persona_card_note"))}</h4>
+            <p>{html.escape(row["confidence_note"])}</p>
+          </article>
+        </div>
+    """
+
+
 def render_persona_opinion_preview(
     result_rows: list[ResultRow],
     persona_attributes: dict[str, dict[str, Any]],
@@ -1317,11 +1658,13 @@ def render_persona_opinion_preview(
         """
     )
     cards = []
+    project_label = html.escape(project_name)
     for row in opinion_rows[:5]:
         sentiment = html.escape(row["sentiment"])
         cards.append(
             f"""
             <article class="kfps-opinion-card">
+              <div class="kfps-opinion-project">{project_label}</div>
               <div class="kfps-opinion-meta">
                 <span>{html.escape(row["persona_id"])}</span>
                 <span class="kfps-sentiment {sentiment}">{sentiment}</span>
@@ -1337,6 +1680,9 @@ def render_persona_opinion_preview(
             """
         )
     st.html(f'<div class="kfps-opinion-grid">{"".join(cards)}</div>')
+    dominant_card = _dominant_sentiment_card_html(opinion_rows, lang)
+    if dominant_card:
+        st.html(dominant_card)
     st.download_button(
         ui_text(lang, "excel_download"),
         data=persona_opinions_csv(opinion_rows),

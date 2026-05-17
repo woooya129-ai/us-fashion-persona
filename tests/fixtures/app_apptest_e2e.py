@@ -93,6 +93,7 @@ def fake_make_llm_evaluator_async(
     api_key: str,
     temperature: float,
     max_output_tokens: int = 600,
+    **_kwargs: Any,
 ):
     by_pid = {"p001": MOCK_RESULTS[0], "p002": MOCK_RESULTS[1]}
 
@@ -155,6 +156,6 @@ def install_apptest_e2e_patches(monkeypatch: pytest.MonkeyPatch, db_path: Path) 
         "load_secrets_from_env_path",
         lambda env_path=secrets_loader.SECRETS_ENV_PATH: _fake_secrets_status(db_path),
     )
-    monkeypatch.setattr(app, "get_provider_key", lambda _provider: None)
-    monkeypatch.setattr(secrets_loader, "get_provider_key", lambda _provider: None)
+    monkeypatch.setattr(app, "get_provider_key", lambda _provider, **_kwargs: None)
+    monkeypatch.setattr(secrets_loader, "get_provider_key", lambda _provider, **_kwargs: None)
     monkeypatch.setattr(worker, "start_worker_thread", _sync_start_worker_thread)

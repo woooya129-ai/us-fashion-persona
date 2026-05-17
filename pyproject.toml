@@ -1,18 +1,18 @@
 [project]
 name = "us-fashion-persona"
-version = "0.5.3"
+version = "0.6.2"
 description = "Synthetic persona-based exploratory screener for US fashion concepts."
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-only" }
 
-# DISCUSS-002 / current-update-review C1 반영 (2026-05-01).
-# pydantic v2 lock (lock-in v1.2 §3.1).
+# DISCUSS-002 / current-update-review C1 諛섏쁺 (2026-05-01).
+# pydantic v2 lock (lock-in v1.2 짠3.1).
 dependencies = [
   "streamlit>=1.57,<2",
   "pydantic>=2,<3",
   "pyyaml>=6,<7",
   "python-dotenv>=1,<2",
-  "httpx>=0.27,<1",  # Phase 3 LLM client async 용
+  "httpx>=0.27,<1",
   "pandas>=2,<3",
   "datasets>=3,<4",
   "pyarrow>=18",
@@ -58,7 +58,7 @@ line-ending = "auto"
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "data", "outputs", "cache", "logs"]
 skips = [
-  "B101", # assert 사용은 테스트/내부 검증에서 허용
+  "B101", # assert ?ъ슜? ?뚯뒪???대? 寃利앹뿉???덉슜
   "B105", # env var names and UI labels are not hardcoded secrets
 ]
 

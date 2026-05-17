@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "If you use this software or its documented workflow, cite it as below."
 title: "us-fashion-persona: Synthetic Persona Pre-Screening for US Fashion Concepts"
-version: 0.5.3
-date-released: 2026-05-10
+version: 0.6.2
+date-released: 2026-05-18
 type: software
 authors:
   - family-names: "Kim"

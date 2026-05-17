@@ -8,6 +8,7 @@ import pytest
 from src.cache import (
     compute_cache_key,
     compute_concept_hash,
+    compute_legacy_cache_key_v1,
     compute_price_context_hash,
     normalize_concept_text,
 )
@@ -174,6 +175,29 @@ class TestComputeCacheKey:
         h1 = compute_cache_key(**self.BASE_ARGS)
         h2 = compute_cache_key(**{**self.BASE_ARGS, "model_name": "gpt-4o"})
         assert h1 != h2
+
+    def test_different_api_base_url(self):
+        h1 = compute_cache_key(
+            **{**self.BASE_ARGS, "api_base_url": "https://api.groq.com/openai/v1"}
+        )
+        h2 = compute_cache_key(**{**self.BASE_ARGS, "api_base_url": "https://api.deepseek.com"})
+        assert h1 != h2
+
+    def test_different_provider_model_id(self):
+        h1 = compute_cache_key(**{**self.BASE_ARGS, "provider_model_id": "qwen-qwq-32b"})
+        h2 = compute_cache_key(**{**self.BASE_ARGS, "provider_model_id": "deepseek-chat"})
+        assert h1 != h2
+
+    def test_legacy_key_does_not_include_endpoint_or_provider_model_id(self):
+        current = compute_cache_key(
+            **{
+                **self.BASE_ARGS,
+                "api_base_url": "https://api.groq.com/openai/v1",
+                "provider_model_id": "qwen-qwq-32b",
+            }
+        )
+        legacy = compute_legacy_cache_key_v1(**self.BASE_ARGS)
+        assert current != legacy
 
     def test_different_temperature(self):
         h1 = compute_cache_key(**self.BASE_ARGS)

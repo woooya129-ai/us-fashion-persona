@@ -1,8 +1,6 @@
-"""src/secrets_loader.py 테스트.
+"""Tests for secret loading without exposing real values."""
 
-Hard Rule §1, §2: 키를 코드/주석/로그에 작성하지 않음, 일부도 출력 금지.
-모든 테스트는 fake key 만 사용.
-"""
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -10,14 +8,20 @@ import pytest
 
 from src.secrets_loader import (
     ANTHROPIC_KEY_VAR,
+    DEEPSEEK_KEY_VAR,
     GOOGLE_KEY_VAR,
+    GROQ_KEY_VAR,
     HF_TOKEN_VAR,
     OPENAI_KEY_VAR,
+    QWEN_KEY_VAR,
+    REQUIRE_USER_PROVIDER_KEY_VAR,
     LoadedSecretsStatus,
     get_hf_token,
     get_provider_key,
     load_secrets_from_env_path,
+    provider_env_fallback_allowed,
     redact_for_log,
+    require_user_provider_key,
 )
 
 pytestmark = pytest.mark.no_network
@@ -25,8 +29,17 @@ pytestmark = pytest.mark.no_network
 
 @pytest.fixture(autouse=True)
 def isolate_env(monkeypatch: pytest.MonkeyPatch):
-    """각 테스트마다 환경변수 격리."""
-    for var in (OPENAI_KEY_VAR, ANTHROPIC_KEY_VAR, GOOGLE_KEY_VAR, HF_TOKEN_VAR):
+    """Keep credential-related environment variables isolated per test."""
+    for var in (
+        OPENAI_KEY_VAR,
+        ANTHROPIC_KEY_VAR,
+        GOOGLE_KEY_VAR,
+        GROQ_KEY_VAR,
+        DEEPSEEK_KEY_VAR,
+        QWEN_KEY_VAR,
+        HF_TOKEN_VAR,
+        REQUIRE_USER_PROVIDER_KEY_VAR,
+    ):
         monkeypatch.delenv(var, raising=False)
     yield
 
@@ -39,6 +52,10 @@ class TestLoadSecretsFromEnvPath:
         assert status.env_path_exists is False
         assert status.openai_present is False
         assert status.anthropic_present is False
+        assert status.google_present is False
+        assert status.groq_present is False
+        assert status.deepseek_present is False
+        assert status.qwen_present is False
         assert status.hf_token_present is False
 
     def test_env_present_after_load(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -49,6 +66,20 @@ class TestLoadSecretsFromEnvPath:
         assert status.openai_present is True
         assert status.env_path_exists is True
 
+    def test_required_user_provider_key_hides_provider_env_status(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setenv(REQUIRE_USER_PROVIDER_KEY_VAR, "1")
+        monkeypatch.setenv(OPENAI_KEY_VAR, "fake-openai-key-for-test")
+        monkeypatch.setenv(HF_TOKEN_VAR, "fake-hf-token")
+        env_path = tmp_path / "fake.env"
+        env_path.write_text("# placeholder\n", encoding="utf-8")
+
+        status = load_secrets_from_env_path(env_path)
+
+        assert status.openai_present is False
+        assert status.hf_token_present is True
+
     def test_returned_status_does_not_contain_actual_key(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
@@ -56,7 +87,6 @@ class TestLoadSecretsFromEnvPath:
         monkeypatch.setenv(OPENAI_KEY_VAR, fake)
         env_path = tmp_path / "fake.env"
         status = load_secrets_from_env_path(env_path)
-        # status repr 에 실제 키가 노출되면 안 됨
         for value in (str(status), repr(status)):
             assert fake not in value
             assert fake[:8] not in value
@@ -78,6 +108,32 @@ class TestGetProviderKey:
     def test_google_present(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv(GOOGLE_KEY_VAR, "fake-google")
         assert get_provider_key("google") == "fake-google"
+
+    def test_explicit_api_key_env_takes_precedence(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv(GROQ_KEY_VAR, "fake-groq")
+        assert get_provider_key("openai_compatible", api_key_env=GROQ_KEY_VAR) == "fake-groq"
+
+    def test_required_user_provider_key_blocks_provider_env(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv(REQUIRE_USER_PROVIDER_KEY_VAR, "true")
+        monkeypatch.setenv(OPENAI_KEY_VAR, "fake-openai")
+
+        assert require_user_provider_key() is True
+        assert provider_env_fallback_allowed() is False
+        assert get_provider_key("openai") is None
+
+    def test_required_user_provider_key_blocks_explicit_provider_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setenv(REQUIRE_USER_PROVIDER_KEY_VAR, "1")
+        monkeypatch.setenv(GROQ_KEY_VAR, "fake-groq")
+
+        assert get_provider_key("openai_compatible", api_key_env=GROQ_KEY_VAR) is None
+
+    def test_allow_env_fallback_override(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv(REQUIRE_USER_PROVIDER_KEY_VAR, "1")
+        monkeypatch.setenv(OPENAI_KEY_VAR, "fake-openai")
+
+        assert get_provider_key("openai", allow_env_fallback=True) == "fake-openai"
 
     def test_missing_returns_none(self):
         assert get_provider_key("openai") is None
@@ -108,7 +164,6 @@ class TestRedactForLog:
         assert redact_for_log("sk-fake-key-12345") == "[REDACTED]"
 
     def test_keep_argument_does_not_leak(self):
-        """keep 인자가 양수여도 일부도 출력 안 함 (Hard Rule §2)."""
         secret = "sk-fake-key-12345"
         redacted = redact_for_log(secret, keep=4)
         assert secret not in redacted
@@ -117,6 +172,4 @@ class TestRedactForLog:
         assert redacted == "[REDACTED]"
 
     def test_empty_returns_absent(self):
-        # 빈 문자열은 falsy → load_secrets 가 absent 로 처리
-        # redact_for_log 자체는 None vs 비어있지 않은 str 만 구분
         assert redact_for_log("") == "[ABSENT]"

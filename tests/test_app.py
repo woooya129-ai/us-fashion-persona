@@ -509,7 +509,8 @@ def test_app_source_uses_readable_comfort_tokens_with_targeted_hero_gradient() -
     assert "BALANCE" in source
     assert "HIGH" in source
     assert "MAX" in source
-    assert "MAX_SAMPLE_SIZE = 1000" in source
+    assert "MAX_SAMPLE_SIZE = 1_000" in source
+    assert "DEFAULT_HF_MAX_SCAN_ROWS = 3_000" in source
     assert "sampling-seed" in source
     assert "US_STATE_OPTIONS" in source
     assert "OCCUPATION_KEYWORD_OPTIONS" in source
@@ -586,12 +587,12 @@ def test_app_sampling_and_filter_limits_are_explicit() -> None:
     assert app.ui_text("KR", "sampling_seed") == "sampling-seed"
 
 
-def test_v053_runtime_structure_modules_keep_us_sources() -> None:
+def test_v062_runtime_structure_modules_keep_us_sources() -> None:
     import src.app_config as app_config
     import src.orchestrator as orchestrator
     import src.ui.assets as assets
 
-    assert app_config.APP_VERSION == "0.5.3"
+    assert app_config.APP_VERSION == "0.6.2"
     assert app_config.DEFAULT_PRICE_CONTEXT_VERSION == app.DEFAULT_PRICE_CONTEXT_VERSION
     assert app.DEFAULT_HF_DATASET_ID == "nvidia/Nemotron-Personas-USA"
     assert assets.HF_DATASET_URL == "https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA"

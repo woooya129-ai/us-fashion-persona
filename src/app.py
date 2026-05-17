@@ -28,8 +28,10 @@ import streamlit as st
 
 from src.app_config import (
     APP_VERSION,
+    DEFAULT_HF_MAX_SCAN_ROWS,
     DEFAULT_PRICE_CONTEXT_VERSION,
     DEFAULT_UI_LANGUAGE,
+    MAX_OUTPUT_TOKENS_PER_PERSONA,
     MAX_SAMPLE_SIZE,
     OCCUPATION_KEYWORD_OPTIONS,
     PRODUCT_CARD_EMPTY_PLACEHOLDER,
@@ -63,6 +65,8 @@ from src.orchestrator import (
     build_run_report,
     load_result_rows,
     make_run_meta,
+    run_preflight_and_cache,
+    run_preflight_and_cache_async,
 )
 from src.orchestrator import _load_and_sample as _orchestrator_load_and_sample
 from src.orchestrator import (
@@ -81,6 +85,9 @@ from src.report_writer import required_footer_text
 from src.secrets_loader import get_provider_key, load_secrets_from_env_path
 from src.ui.rendering import (
     _current_ui_state,
+    _estimate_model_cost,
+    _estimate_run_tokens,
+    _model_option_label,
     _safe_provider_key,
     _sorted_model_options,
     apply_design_system,
@@ -119,10 +126,12 @@ __all__ = (
     "DB_PATH",
     "DEFAULT_HF_DATASET_ID",
     "DEFAULT_HF_REVISION",
+    "DEFAULT_HF_MAX_SCAN_ROWS",
     "DEFAULT_PRICE_CONTEXT_VERSION",
     "DEFAULT_SPLIT",
     "DEFAULT_UI_LANGUAGE",
     "MAX_SAMPLE_SIZE",
+    "MAX_OUTPUT_TOKENS_PER_PERSONA",
     "OCCUPATION_KEYWORD_OPTIONS",
     "PRODUCT_CARD_EMPTY_PLACEHOLDER",
     "PRODUCT_CARD_FIELD_LABELS_KR",
@@ -144,6 +153,9 @@ __all__ = (
     "_load_and_sample",
     "_persona_attributes",
     "_provider_from_str",
+    "_model_option_label",
+    "_estimate_model_cost",
+    "_estimate_run_tokens",
     "_sampling_strategy_for_dataset",
     "_sorted_model_options",
     "build_canonical_product_card_text",
@@ -167,6 +179,8 @@ __all__ = (
     "make_llm_evaluator_async",
     "make_price_context",
     "make_run_meta",
+    "run_preflight_and_cache",
+    "run_preflight_and_cache_async",
     "persona_opinions_csv",
     "required_footer_text",
     "start_worker_thread",
@@ -213,7 +227,12 @@ def make_llm_evaluator_async(
     model_name: str,
     api_key: str,
     temperature: float,
-    max_output_tokens: int = 600,
+    max_output_tokens: int = MAX_OUTPUT_TOKENS_PER_PERSONA,
+    api_base_url: str | None = None,
+    auth_header: str | None = None,
+    supports_json_object: bool = True,
+    supports_json_schema: bool = False,
+    supports_tool_use: bool = False,
 ):
     return _orchestrator_make_llm_evaluator_async(
         provider=provider,
@@ -221,6 +240,11 @@ def make_llm_evaluator_async(
         api_key=api_key,
         temperature=temperature,
         max_output_tokens=max_output_tokens,
+        api_base_url=api_base_url,
+        auth_header=auth_header,
+        supports_json_object=supports_json_object,
+        supports_json_schema=supports_json_schema,
+        supports_tool_use=supports_tool_use,
         call_with_retry_fn=call_with_retry,
     )
 
@@ -279,8 +303,8 @@ def start_screening(
 ) -> None:
     init_db(DB_PATH)
     if _has_active_job_in_progress():
-        active_lang = "KR" if st.session_state.get("kfps_lang_is_kor") else "EN"
-        st.warning(ui_text(active_lang, "active_job_notice"))
+        active_lang = "KR" if bool(st.session_state.get("kfps_lang_is_kor", True)) else "EN"
+        st.warning(ui_text(active_lang, "job_already_running"))
         return
     hf_token = str(model.get("hf_token", "")).strip() or None
     loaded, sampled = _load_and_sample(dataset, sample, hf_token=hf_token)
@@ -297,6 +321,21 @@ def start_screening(
         hashes,
         prompt_template_md,
     )
+    pricing = model.get("pricing")
+    llm_evaluator = make_llm_evaluator_async(
+        provider=_provider_from_str(model["provider"]),
+        model_name=model["model_name"],
+        api_key=api_key,
+        temperature=float(model["temperature"]),
+        max_output_tokens=MAX_OUTPUT_TOKENS_PER_PERSONA,
+        api_base_url=getattr(pricing, "api_base_url", None),
+        auth_header=getattr(pricing, "auth_header", None),
+        supports_json_object=bool(getattr(pricing, "supports_json_object", True)),
+        supports_json_schema=bool(getattr(pricing, "supports_json_schema", False)),
+        supports_tool_use=bool(getattr(pricing, "supports_tool_use", False)),
+    )
+    run_preflight_and_cache(DB_PATH, payloads[0], llm_evaluator)
+
     job_id = create_job(DB_PATH, total_count=len(payloads))
     run_id = str(uuid.uuid4())
     run_meta = make_run_meta(
@@ -310,12 +349,6 @@ def start_screening(
         matched_count_before_sample=sampled.matched_count_before_sample,
         sampling_strategy=_sampling_strategy_for_dataset(dataset),
         filter_summary_text=filter_summary(sample["filter"]),
-    )
-    llm_evaluator = make_llm_evaluator_async(
-        provider=_provider_from_str(model["provider"]),
-        model_name=model["model_name"],
-        api_key=api_key,
-        temperature=float(model["temperature"]),
     )
     evaluator = make_cached_evaluator_async(DB_PATH, payloads, llm_evaluator)
     worker_input = WorkerInput(
@@ -348,7 +381,18 @@ def _render_job_panel_impl(lang: str) -> None:
 
     render_persona_results_anchor()
     scroll_to_persona_results_once()
-    st.subheader(ui_text(lang, "status_header"))
+    status_title_col, status_help_col = st.columns([4, 1])
+    with status_title_col:
+        st.subheader(ui_text(lang, "status_header"))
+    with (
+        status_help_col,
+        st.popover(
+            ui_text(lang, "status_help_button"),
+            use_container_width=True,
+        ),
+    ):
+        st.markdown(f"**{ui_text(lang, 'status_help_title')}**")
+        st.markdown(ui_text(lang, "status_help_body"))
     try:
         job = load_job_stats(DB_PATH, job_id)
     except KeyError:
@@ -410,9 +454,11 @@ def _render_job_panel_impl(lang: str) -> None:
             use_container_width=True,
         )
 
-    tab_source, tab_rendered = st.tabs(
-        [ui_text(lang, "report_tab_source"), ui_text(lang, "report_tab_rendered")]
+    tab_rendered, tab_source = st.tabs(
+        [ui_text(lang, "report_tab_rendered"), ui_text(lang, "report_tab_source")]
     )
+    with tab_rendered:
+        st.markdown(run_report.report_markdown)
     with tab_source:
         report_source_label = html.escape(
             ui_text(lang, "report_tab_source"),
@@ -427,9 +473,6 @@ def _render_job_panel_impl(lang: str) -> None:
             </section>
             """
         )
-    with tab_rendered:
-        st.markdown(run_report.report_markdown)
-
     q = run_report.quality
     c1, c2, c3 = st.columns(3)
     c1.metric(ui_text(lang, "included"), q.distribution_included)
@@ -490,7 +533,7 @@ def render_footer(lang: str) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="US Fashion Persona Screener", layout="wide")
+    st.set_page_config(page_title="us-fashion-persona", layout="wide")
     lang_seed, theme_seed = _current_ui_state()
     apply_design_system(theme_seed == "dark")
     lang, _dark_mode = render_top_bar(lang_seed, theme_seed)
@@ -530,7 +573,11 @@ def main() -> None:
         st.warning(ui_text(lang, "injection_warning"))
 
     render_run_panel(lang)
-    api_key = _safe_provider_key(model["provider"], model["api_key"])
+    api_key = _safe_provider_key(
+        model["provider"],
+        model["api_key"],
+        getattr(model.get("pricing"), "api_key_env", None),
+    )
     confirmed = st.checkbox(
         ui_text(lang, "cost_confirm"),
         value=False,
@@ -556,20 +603,22 @@ def main() -> None:
             st.error(f"실행 준비 실패: {type(exc).__name__}")
     has_user_concept_input = bool(concept.get("description"))
     active_job_in_progress = _has_active_job_in_progress()
-    run_button_disabled = not (
-        cost_state.get("ready")
-        and confirmed
-        and injection_confirmed
-        and has_user_concept_input
-        and concept["category"]
-        and api_key
-        and local_ready
-        and not active_job_in_progress
+    run_button_disabled = (
+        not (
+            cost_state.get("ready")
+            and confirmed
+            and injection_confirmed
+            and has_user_concept_input
+            and concept["category"]
+            and api_key
+            and local_ready
+        )
+        or active_job_in_progress
     )
     if not api_key:
         render_inline_note(ui_text(lang, "need_api_key"))
     if active_job_in_progress:
-        render_inline_note(ui_text(lang, "active_job_notice"))
+        render_inline_note(ui_text(lang, "job_already_running"))
 
     render_enter_button(enter_button_placeholder, lang, disabled=run_button_disabled)
 
@@ -577,15 +626,24 @@ def main() -> None:
 
     if enter_requested and not run_button_disabled:
         try:
-            start_screening(
-                concept=concept,
-                dataset=dataset,
-                sample=sample,
-                model=model,
-                price_context=price_context,
-                hashes=hashes,
-                api_key=cast(str, api_key),
+            st.toast(ui_text(lang, "start_pending_toast"))
+            spinner_text = (
+                f"{ui_text(lang, 'start_pending_title')} · {ui_text(lang, 'start_pending_body')}"
             )
+            with st.spinner(spinner_text, show_time=True):
+                start_screening(
+                    concept=concept,
+                    dataset=dataset,
+                    sample=sample,
+                    model=model,
+                    price_context=price_context,
+                    hashes=hashes,
+                    api_key=cast(str, api_key),
+                )
+            if st.session_state.get("active_job_id"):
+                st.success(f"{ui_text(lang, 'job_started')}: {st.session_state['active_job_id']}")
+            render_loading_panel(lang)
+            render_report_placeholder(lang)
         except DatasetAccessError as exc:
             st.error(exc.user_message)
         except (FileNotFoundError, ValueError) as exc:
@@ -597,7 +655,7 @@ def main() -> None:
         _render_job_panel_impl(lang)
     else:
         render_job_panel_fragment(lang)
-    render_detailed_run_context(price_context, cost_state, hashes, lang)
+    render_detailed_run_context(price_context, cost_state, hashes, lang, pricing_config)
     render_footer(lang)
 
 

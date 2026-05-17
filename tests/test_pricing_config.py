@@ -118,17 +118,29 @@ class TestProductionConfigShape:
         production_path = Path(__file__).parent.parent / "config" / "pricing_config.yaml"
         config = load_pricing_config(production_path)
         assert len(config) >= 1
-        assert "gpt-5.5" in config
-        assert "gpt-5.5-pro" in config
-        assert "gpt-5.4-mini" in config
-        assert "gpt-5.3-chat-latest" in config
-        assert "claude-opus-4-6" in config
-        assert "claude-sonnet-4-5" in config
+        assert "gpt-5.2" in config
+        assert "gpt-5.2-pro" in config
+        assert "gpt-5-mini" in config
+        assert "gpt-5-nano" in config
+        assert "claude-opus-4-7" in config
+        assert "claude-sonnet-4-6" in config
         assert "claude-haiku-4-5" in config
+        assert "gemini-3.1-flash-lite" in config
+        assert "gemini-3.1-pro-preview" in config
+        assert "gemini-3-flash-preview" in config
+        assert "gemini-2.5-flash-lite" in config
+        assert "groq-qwen-qwq" in config
+        assert "deepseek-chat" in config
+        assert "qwen3.6-plus" in config
         for _model_name, pricing in config.items():
             assert isinstance(pricing, ModelPricing)
-            assert pricing.input_per_million_usd >= 0
-            assert pricing.output_per_million_usd >= 0
+            if pricing.has_pricing:
+                assert pricing.input_per_million_usd is not None
+                assert pricing.output_per_million_usd is not None
+                assert pricing.input_per_million_usd >= 0
+                assert pricing.output_per_million_usd >= 0
+            else:
+                assert pricing.reference_only is True
             assert pricing.provider
 
     def test_production_config_meta_section_ignored(self):
@@ -143,8 +155,26 @@ class TestProductionConfigShape:
         config = load_pricing_config(production_path)
         for _model_name, pricing in config.items():
             assert pricing.provider_model_id, f"{_model_name} missing provider_model_id"
+            assert pricing.api_base_url and pricing.api_base_url.startswith("https://")
+            assert pricing.auth_header
+            assert pricing.api_key_env
+            assert isinstance(pricing.supports_json_object, bool)
+            assert isinstance(pricing.supports_json_schema, bool)
+            assert isinstance(pricing.supports_tool_use, bool)
+            assert isinstance(pricing.verified, bool)
             assert pricing.source_url and pricing.source_url.startswith("https://")
             assert pricing.checked_at  # ISO date string
+
+    def test_reference_only_models_can_omit_prices(self):
+        production_path = Path(__file__).parent.parent / "config" / "pricing_config.yaml"
+        config = load_pricing_config(production_path)
+        for alias in ("groq-qwen-qwq", "deepseek-chat", "qwen3.6-plus"):
+            pricing = config[alias]
+            assert pricing.provider == "openai_compatible"
+            assert pricing.input_per_million_usd is None
+            assert pricing.output_per_million_usd is None
+            assert pricing.reference_only is True
+            assert pricing.verified is False
 
 
 class TestModelPricingOptionalMeta:

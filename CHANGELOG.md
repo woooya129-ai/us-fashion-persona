@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.2 - 2026-05-18 (Provider expansion and Agent Pack workflow)
+
+- Added Docker/HF Space-ready runtime files: `Dockerfile`, `.dockerignore`,
+  and `requirements.txt`.
+- Expanded model/provider configuration to cover OpenAI, Anthropic, Google,
+  Groq, DeepSeek, and Qwen-style OpenAI-compatible endpoints through
+  `config/pricing_config.yaml`.
+- Added endpoint and provider-model-id dimensions to cache keys, with legacy
+  cache fallback for prior results.
+- Added preflight validation before job creation so malformed provider output
+  fails before a full paid panel run starts.
+- Added `UFPS_REQUIRE_USER_PROVIDER_KEY` handling so shared deployments can
+  require visitors to paste their own provider API key.
+- Added Agent Pack export/import workflow for Codex and Claude Code CLI users,
+  plus an example concept and tests.
+- Raised public run guardrails to FAST 50, BALANCE 100, HIGH 300, and MAX 1000
+  personas with a default Hugging Face scan cap of 3000 rows.
+- Kept USA data boundaries on Nemotron-Personas-USA and U.S. official
+  BLS/Census/Federal Reserve economic context.
+
 ## 0.5.3 - 2026-05-10 (Attribution and rights positioning)
 
 - Aligned repository structure and file management with the k-fashion-persona

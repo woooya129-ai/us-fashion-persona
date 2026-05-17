@@ -270,10 +270,28 @@ def test_call_openai_connect_error_raises_network():
     _assert_no_key_leak(exc, FAKE_OPENAI_KEY)
 
 
-def test_call_openai_400_raises_context_length():
+def test_call_openai_400_without_context_signal_raises_bad_request():
     async def _inner():
         with respx.mock:
             respx.post(OPENAI_URL).mock(return_value=httpx.Response(400, json={}))
+            async with httpx.AsyncClient() as client:
+                with pytest.raises(LLMClientError) as exc_info:
+                    await call_openai(_make_openai_req(), client)
+            return exc_info.value
+
+    exc = _run(_inner())
+    assert exc.error_type == "bad_request"
+
+
+def test_call_openai_400_context_signal_raises_context_length():
+    async def _inner():
+        with respx.mock:
+            respx.post(OPENAI_URL).mock(
+                return_value=httpx.Response(
+                    400,
+                    json={"error": {"message": "maximum context length exceeded"}},
+                )
+            )
             async with httpx.AsyncClient() as client:
                 with pytest.raises(LLMClientError) as exc_info:
                     await call_openai(_make_openai_req(), client)

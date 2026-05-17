@@ -31,24 +31,25 @@ PRODUCT_CARD_FIELD_LABELS_KR: dict[str, str] = {
     "description": "브랜드 메시지/제품 설명",
 }
 
-APP_VERSION = "0.5.3"
+APP_VERSION = "0.6.2"
 DEFAULT_PRICE_CONTEXT_VERSION = "us_official_bls_2024_census_hinc02_2024_scf_2022_segments_v1"
 DEFAULT_UI_LANGUAGE = "EN"
 DEFAULT_TEMPERATURE = 0.3
-MAX_SAMPLE_SIZE = 1000
+MAX_SAMPLE_SIZE = 1_000
+DEFAULT_HF_MAX_SCAN_ROWS = 3_000
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 ESTIMATE_SYSTEM_PROMPT_TOKENS = 400
 ESTIMATE_PERSONA_TOKENS = 350
 ESTIMATE_SIDEBAR_CONCEPT_TOKENS = 160
-ESTIMATE_ECONOMIC_CONTEXT_TOKENS = 140
+ESTIMATE_ECONOMIC_CONTEXT_TOKENS = 180
 ESTIMATE_SCHEMA_INSTRUCTION_TOKENS = 120
 ESTIMATE_OUTPUT_TOKENS_PER_PERSONA = 325
-MAX_OUTPUT_TOKENS_PER_PERSONA = 600
+MAX_OUTPUT_TOKENS_PER_PERSONA = 1200
 RUN_MODE_PRESETS: dict[str, dict[str, Any]] = {
-    "quick": {"sample_size": 10, "temperature": 0.2},
-    "balanced": {"sample_size": 30, "temperature": 0.3},
-    "deep": {"sample_size": 60, "temperature": 0.3},
-    "max": {"sample_size": 1000, "temperature": 0.3},
+    "quick": {"sample_size": 50, "temperature": 0.2},
+    "balanced": {"sample_size": 100, "temperature": 0.3},
+    "deep": {"sample_size": 300, "temperature": 0.3},
+    "max": {"sample_size": MAX_SAMPLE_SIZE, "temperature": 0.3},
 }
 US_STATE_OPTIONS: tuple[str, ...] = (
     "AL",
@@ -122,15 +123,13 @@ OCCUPATION_KEYWORD_OPTIONS: tuple[str, ...] = (
     "예술",
 )
 BEGINNER_MODEL_PRIORITY: tuple[str, ...] = (
-    "gpt-5.4-mini",
-    "gpt-5.4-nano",
-    "gpt-5.5",
-    "gpt-5.4",
-    "gpt-5.3-chat-latest",
     "gpt-4o-mini",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gemini-2.5-flash-lite",
     "claude-haiku-4-5",
     "claude-sonnet-4-6",
     "claude-sonnet-4-5",
-    "gemini-flash",
+    "gpt-5.2",
     "gpt-4o",
 )
